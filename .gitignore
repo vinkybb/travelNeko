@@ -1,0 +1,11 @@
+.next
+node_modules
+coverage
+dist
+*.log
+.DS_Store
+.env
+.env.local
+data/*.tmp
+data/smoke-*.json
+
