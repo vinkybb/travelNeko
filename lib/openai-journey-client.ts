@@ -1,12 +1,14 @@
 import OpenAI from "openai";
+import type { z } from "zod";
 
 import { getAppConfig } from "./config";
 
-type CompleteJsonOptions = {
+export type CompleteJsonOptions<T> = {
   system: string;
   user: string;
   model?: string;
   imageDataUrl?: string;
+  schema: z.ZodType<T>;
 };
 
 type GenerateImageOptions = {
@@ -14,7 +16,7 @@ type GenerateImageOptions = {
 };
 
 export interface JourneyLLMClient {
-  completeJson<T>(options: CompleteJsonOptions): Promise<T>;
+  completeJson<T>(options: CompleteJsonOptions<T>): Promise<T>;
   generateImage(options: GenerateImageOptions): Promise<string | null>;
 }
 
@@ -39,20 +41,42 @@ function extractJsonObject(text: string) {
   throw new Error(`Could not find a JSON object in: ${trimmed}`);
 }
 
-export class StepJourneyClient implements JourneyLLMClient {
+function parseAndValidateJson<T>(rawText: string, schema: z.ZodType<T>): T {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(extractJsonObject(rawText));
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    throw new Error(`Model returned invalid JSON: ${message}`);
+  }
+
+  const result = schema.safeParse(parsed);
+  if (!result.success) {
+    const snippet = JSON.stringify(parsed).slice(0, 400);
+    throw new Error(
+      `Model JSON did not match expected shape: ${result.error.message}. Snippet: ${snippet}`
+    );
+  }
+
+  return result.data;
+}
+
+/**
+ * OpenAI SDK against a configurable base URL (OpenAI API or any OpenAI-compatible HTTP API).
+ */
+export class OpenAIJourneyClient implements JourneyLLMClient {
   private client: OpenAI;
   private config = getAppConfig();
 
   constructor() {
     if (!this.config.apiKey) {
-      throw new Error(
-        "Missing STEP_API_KEY or OPENAI_API_KEY. Add one to run TravelNeko."
-      );
+      throw new Error("Missing LLM_API_KEY.");
     }
 
     this.client = new OpenAI({
       apiKey: this.config.apiKey,
-      baseURL: this.config.baseURL
+      baseURL: this.config.baseURL,
+      timeout: this.config.requestTimeoutMs
     });
   }
 
@@ -60,8 +84,9 @@ export class StepJourneyClient implements JourneyLLMClient {
     system,
     user,
     model,
-    imageDataUrl
-  }: CompleteJsonOptions): Promise<T> {
+    imageDataUrl,
+    schema
+  }: CompleteJsonOptions<T>): Promise<T> {
     const completion = await this.client.chat.completions.create({
       model: model || this.config.model,
       temperature: 0.8,
@@ -86,7 +111,7 @@ export class StepJourneyClient implements JourneyLLMClient {
           .join("")
       : content || "";
 
-    return JSON.parse(extractJsonObject(rawText)) as T;
+    return parseAndValidateJson(rawText, schema);
   }
 
   async generateImage({ prompt }: GenerateImageOptions) {

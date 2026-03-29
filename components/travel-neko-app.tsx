@@ -1,6 +1,14 @@
 "use client";
 
-import { FormEvent, MouseEvent as ReactMouseEvent, useEffect, useRef, useState } from "react";
+import {
+  ChangeEvent,
+  FormEvent,
+  MouseEvent as ReactMouseEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState
+} from "react";
 
 import type { JourneyRecord, JourneyResponse } from "../lib/types";
 
@@ -46,6 +54,9 @@ type NpcCat = {
 };
 
 const WALK_DURATION_MS = 880;
+
+/** Keep in sync with app/api/journey/route.ts cap on imageDataUrl. */
+const MAX_IMAGE_DATA_URL_CHARS = 2_500_000;
 
 const zones: Zone[] = [
   {
@@ -447,6 +458,7 @@ export function TravelNekoApp({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isWalking, setIsWalking] = useState(false);
   const [isAutoExploring, setIsAutoExploring] = useState(false);
+  const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const walkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stageTickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const didApplyQueryDemoRef = useRef(false);
@@ -536,6 +548,125 @@ export function TravelNekoApp({
   }, [records]);
 
   useEffect(() => {
+    return () => {
+      if (walkTimerRef.current) {
+        clearTimeout(walkTimerRef.current);
+      }
+
+      if (stageTickerRef.current) {
+        clearInterval(stageTickerRef.current);
+      }
+    };
+  }, []);
+
+  const activeNpc = getNpcById(selectedNpcId);
+  const activeZone = getZoneById(activeNpc.zoneId);
+  const currentZone = findClosestZone(playerPosition);
+  const activeRecord =
+    records.find((record) => record.id === selectedId) ?? records[0] ?? null;
+  const activeRecordFocusName = activeRecord?.input.focusCatName || activeNpc.alias;
+  const nearbyCats = npcCats.filter(
+    (npc) => npc.zoneId === activeNpc.zoneId && npc.id !== activeNpc.id
+  );
+  const talkDistance =
+    getDistance(playerPosition, getMeetPoint(activeNpc)) <= 8 ||
+    getDistance(playerPosition, { x: activeNpc.x, y: activeNpc.y }) <= 12;
+  const talkButtonLabel = talkDistance
+    ? `和 ${activeNpc.alias} 聊天`
+    : `走过去并和 ${activeNpc.alias} 聊天`;
+
+  function updateField<Key extends keyof typeof initialForm>(
+    key: Key,
+    value: (typeof initialForm)[Key]
+  ) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function pushStatus(note: string) {
+    setStatusFeed((current) => [note, ...current].slice(0, 7));
+  }
+
+  function handleTravelImageChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      setImageDataUrl(null);
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setError("请选择一张图片文件。");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== "string") {
+        return;
+      }
+      if (result.length > MAX_IMAGE_DATA_URL_CHARS) {
+        setError("图片太大，请选择较小的文件。");
+        setImageDataUrl(null);
+        return;
+      }
+      setError("");
+      setImageDataUrl(result);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function clearWalkTimer() {
+    if (walkTimerRef.current) {
+      clearTimeout(walkTimerRef.current);
+      walkTimerRef.current = null;
+    }
+  }
+
+  function clearStageTicker() {
+    if (stageTickerRef.current) {
+      clearInterval(stageTickerRef.current);
+      stageTickerRef.current = null;
+    }
+  }
+
+  function beginWalk(nextPosition: MapPosition, note?: string) {
+    clearWalkTimer();
+    setIsWalking(true);
+    setPlayerPosition({
+      x: clamp(nextPosition.x, 7, 93),
+      y: clamp(nextPosition.y, 10, 90)
+    });
+
+    if (note) {
+      pushStatus(note);
+    }
+
+    walkTimerRef.current = setTimeout(() => {
+      setIsWalking(false);
+      walkTimerRef.current = null;
+    }, WALK_DURATION_MS);
+  }
+
+  const movePlayerBy = useCallback((deltaX: number, deltaY: number) => {
+    if (walkTimerRef.current) {
+      clearTimeout(walkTimerRef.current);
+      walkTimerRef.current = null;
+    }
+    setIsWalking(true);
+    setPlayerPosition((current) => ({
+      x: clamp(current.x + deltaX, 7, 93),
+      y: clamp(current.y + deltaY, 10, 90)
+    }));
+
+    walkTimerRef.current = setTimeout(() => {
+      setIsWalking(false);
+      walkTimerRef.current = null;
+    }, 180);
+  }, []);
+
+  useEffect(() => {
     if (view !== "world") {
       return;
     }
@@ -594,92 +725,7 @@ export function TravelNekoApp({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isSubmitting, view]);
-
-  useEffect(() => {
-    return () => {
-      if (walkTimerRef.current) {
-        clearTimeout(walkTimerRef.current);
-      }
-
-      if (stageTickerRef.current) {
-        clearInterval(stageTickerRef.current);
-      }
-    };
-  }, []);
-
-  const activeNpc = getNpcById(selectedNpcId);
-  const activeZone = getZoneById(activeNpc.zoneId);
-  const currentZone = findClosestZone(playerPosition);
-  const activeRecord =
-    records.find((record) => record.id === selectedId) ?? records[0] ?? null;
-  const activeRecordFocusName = activeRecord?.input.focusCatName || activeNpc.alias;
-  const nearbyCats = npcCats.filter(
-    (npc) => npc.zoneId === activeNpc.zoneId && npc.id !== activeNpc.id
-  );
-  const talkDistance =
-    getDistance(playerPosition, getMeetPoint(activeNpc)) <= 8 ||
-    getDistance(playerPosition, { x: activeNpc.x, y: activeNpc.y }) <= 12;
-  const talkButtonLabel = talkDistance
-    ? `和 ${activeNpc.alias} 聊天`
-    : `走过去并和 ${activeNpc.alias} 聊天`;
-
-  function updateField<Key extends keyof typeof initialForm>(
-    key: Key,
-    value: (typeof initialForm)[Key]
-  ) {
-    setForm((current) => ({ ...current, [key]: value }));
-  }
-
-  function pushStatus(note: string) {
-    setStatusFeed((current) => [note, ...current].slice(0, 7));
-  }
-
-  function clearWalkTimer() {
-    if (walkTimerRef.current) {
-      clearTimeout(walkTimerRef.current);
-      walkTimerRef.current = null;
-    }
-  }
-
-  function clearStageTicker() {
-    if (stageTickerRef.current) {
-      clearInterval(stageTickerRef.current);
-      stageTickerRef.current = null;
-    }
-  }
-
-  function beginWalk(nextPosition: MapPosition, note?: string) {
-    clearWalkTimer();
-    setIsWalking(true);
-    setPlayerPosition({
-      x: clamp(nextPosition.x, 7, 93),
-      y: clamp(nextPosition.y, 10, 90)
-    });
-
-    if (note) {
-      pushStatus(note);
-    }
-
-    walkTimerRef.current = setTimeout(() => {
-      setIsWalking(false);
-      walkTimerRef.current = null;
-    }, WALK_DURATION_MS);
-  }
-
-  function movePlayerBy(deltaX: number, deltaY: number) {
-    clearWalkTimer();
-    setIsWalking(true);
-    setPlayerPosition((current) => ({
-      x: clamp(current.x + deltaX, 7, 93),
-      y: clamp(current.y + deltaY, 10, 90)
-    }));
-
-    walkTimerRef.current = setTimeout(() => {
-      setIsWalking(false);
-      walkTimerRef.current = null;
-    }, 180);
-  }
+  }, [isSubmitting, view, movePlayerBy]);
 
   function hydrateFormFromNpc(npc: NpcCat) {
     setForm((current) => ({
@@ -735,15 +781,16 @@ export function TravelNekoApp({
   function startRequestTicker(
     npc: NpcCat,
     mode: "manual_talk" | "auto_explore",
-    areaName: string
+    areaName: string,
+    ticker: { catName: string; userActionPreview: string }
   ) {
     clearStageTicker();
 
     const phaseNotes = [
-      `${form.catName} 正朝 ${npc.landmark} 接近。`,
+      `${ticker.catName} 正朝 ${npc.landmark} 接近。`,
       mode === "auto_explore"
         ? `信息台已切换为 AI 探索模式，将在 ${areaName} 自主寻找新相遇。`
-        : `信息台已整理你的对话意图：“${form.userAction}”`,
+        : `信息台已整理你的对话意图：“${ticker.userActionPreview}”`,
       `Scout Cat 正在为 ${areaName} 布置遭遇场景。`,
       `${npc.alias} 正准备先开口，附近的猫也可能插话。`,
       "Oracle Cat 正在把隐藏线索压进这一段对话。",
@@ -770,12 +817,19 @@ export function TravelNekoApp({
     mode: "manual_talk" | "auto_explore";
     actionText: string;
     hydrateBeforeWalk?: boolean;
+    /** Avoid stale form in status ticker after setState (e.g. auto explore). */
+    ticker?: { catName: string; userActionPreview: string };
   }) {
     const npc = options.npc;
     const zone = getZoneById(npc.zoneId);
     const sideCats = npcCats.filter(
       (cat) => cat.zoneId === npc.zoneId && cat.id !== npc.id
     );
+
+    const catName = options.ticker?.catName ?? form.catName;
+    const userActionPreview =
+      options.ticker?.userActionPreview ??
+      (options.mode === "manual_talk" ? form.userAction : options.actionText);
 
     if (options.hydrateBeforeWalk === true) {
       hydrateFormFromNpc(npc);
@@ -785,38 +839,47 @@ export function TravelNekoApp({
     setError("");
     setIsSubmitting(true);
     setIsAutoExploring(options.mode === "auto_explore");
-    startRequestTicker(npc, options.mode, zone.name);
+    startRequestTicker(npc, options.mode, zone.name, {
+      catName,
+      userActionPreview
+    });
 
     if (!talkDistance || options.mode === "auto_explore") {
       beginWalk(
         getMeetPoint(npc),
         options.mode === "auto_explore"
-          ? `AI 正带着 ${form.catName} 前往 ${zone.name} 的 ${npc.landmark}。`
-          : `${form.catName} 正走向 ${npc.alias}。`
+          ? `AI 正带着 ${catName} 前往 ${zone.name} 的 ${npc.landmark}。`
+          : `${catName} 正走向 ${npc.alias}。`
       );
       await wait(WALK_DURATION_MS + 120);
     }
 
     try {
+      const payload: Record<string, unknown> = {
+        catName: form.catName,
+        destination: zone.name,
+        currentArea: zone.name,
+        mood: options.mode === "auto_explore" ? npc.mood : form.mood,
+        travelStyle:
+          options.mode === "auto_explore" ? npc.travelStyle : form.travelStyle,
+        userAction: options.actionText,
+        focusCatName: npc.alias,
+        focusCatRole: npc.role,
+        nearbyCats: sideCats.map((cat) => `${cat.alias}(${cat.role})`),
+        encounterMode: options.mode,
+        generatePostcard: form.generatePostcard
+      };
+
+      if (imageDataUrl) {
+        payload.imageDataUrl = imageDataUrl;
+      }
+
       const response = await fetch("/api/journey", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({
-          catName: form.catName,
-          destination: zone.name,
-          currentArea: zone.name,
-          mood: options.mode === "auto_explore" ? npc.mood : form.mood,
-          travelStyle:
-            options.mode === "auto_explore" ? npc.travelStyle : form.travelStyle,
-          userAction: options.actionText,
-          focusCatName: npc.alias,
-          focusCatRole: npc.role,
-          nearbyCats: sideCats.map((cat) => `${cat.alias}(${cat.role})`),
-          encounterMode: options.mode,
-          generatePostcard: form.generatePostcard
-        })
+        body: JSON.stringify(payload)
       });
 
       const json = (await response.json()) as JourneyResponse | { error: string };
@@ -830,6 +893,7 @@ export function TravelNekoApp({
         [json.record, ...current.filter((record) => record.id !== json.record.id)].slice(0, 20)
       );
       setSelectedId(json.record.id);
+      setImageDataUrl(null);
       pushStatus(`《${json.record.archive.chapterTitle}》已写入手账。`);
     } catch (submitError) {
       clearStageTicker();
@@ -866,20 +930,23 @@ export function TravelNekoApp({
     const nextNpc =
       candidatePool[Math.floor(Math.random() * candidatePool.length)] ?? defaultNpc;
     const zone = getZoneById(nextNpc.zoneId);
+    const catName = form.catName;
+    const nextUserAction = `让旅程自己流动，看看 ${zone.name} 会发生什么，也欢迎路过的猫偶尔插话。`;
 
     setSelectedNpcId(nextNpc.id);
     setForm((current) => ({
       ...current,
       mood: nextNpc.mood,
       travelStyle: nextNpc.travelStyle,
-      userAction: `让旅程自己流动，看看 ${zone.name} 会发生什么，也欢迎路过的猫偶尔插话。`
+      userAction: nextUserAction
     }));
 
     await executeJourney({
       npc: nextNpc,
       mode: "auto_explore",
       actionText: `让旅程自己流动，沿着 ${zone.subtitle} 自由探索，看看 ${nextNpc.alias} 会先说什么，也欢迎其他猫咪偶尔插话。`,
-      hydrateBeforeWalk: false
+      hydrateBeforeWalk: false,
+      ticker: { catName, userActionPreview: nextUserAction }
     });
   }
 
@@ -1153,14 +1220,14 @@ export function TravelNekoApp({
                         <strong>{activeRecord.input.focusCatName || "目标猫"}</strong>
                         <p>{activeRecord.companion.openingLine}</p>
                       </div>
-                      {activeRecord.companion.banter.map((line) => {
+                      {activeRecord.companion.banter.map((line, index) => {
                         const parsed = parseSpeakerLine(line);
                         const isFocus = parsed.speaker.includes(activeRecordFocusName);
 
                         return (
                           <div
                             className={`speech ${isFocus ? "is-focus" : "is-cameo"}`}
-                            key={line}
+                            key={`${index}-${line}`}
                           >
                             <strong>{parsed.speaker}</strong>
                             <p>{parsed.text}</p>
@@ -1271,6 +1338,30 @@ export function TravelNekoApp({
               />
             </label>
 
+            <label className="file-upload-row">
+              可选旅行照片
+              <input
+                accept="image/*"
+                onChange={handleTravelImageChange}
+                type="file"
+              />
+              <span className="panel-tip">
+                上传后会交给视觉模型提取氛围与线索；过大文件会被拒绝。
+              </span>
+              {imageDataUrl ? (
+                <button
+                  className="ghost-button small"
+                  onClick={() => {
+                    setImageDataUrl(null);
+                    setError("");
+                  }}
+                  type="button"
+                >
+                  清除图片
+                </button>
+              ) : null}
+            </label>
+
             <div className="kiosk-readonly">
               <div>
                 <span>当前地图区域</span>
@@ -1374,8 +1465,8 @@ export function TravelNekoApp({
             </div>
 
             <div className="status-feed">
-              {statusFeed.map((note) => (
-                <div className="status-entry" key={note}>
+              {statusFeed.map((note, index) => (
+                <div className="status-entry" key={`${index}-${note}`}>
                   {note}
                 </div>
               ))}

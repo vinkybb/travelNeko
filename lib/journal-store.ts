@@ -4,14 +4,13 @@ import path from "node:path";
 import { getAppConfig } from "./config";
 import type { JourneyRecord } from "./types";
 
-function sanitizeRecord(record: JourneyRecord): JourneyRecord {
-  return {
-    ...record,
-    agentNotes: record.agentNotes.map((note) => ({
-      ...note,
-      highlights: note.highlights.filter((highlight) => highlight !== "No image clue uploaded")
-    }))
-  };
+function isEnoent(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: string }).code === "ENOENT"
+  );
 }
 
 export class JsonJournalStore {
@@ -23,25 +22,33 @@ export class JsonJournalStore {
 
     try {
       await readFile(this.filePath, "utf8");
-    } catch {
-      await writeFile(this.filePath, "[]\n", "utf8");
+    } catch (error) {
+      if (isEnoent(error)) {
+        await writeFile(this.filePath, "[]\n", "utf8");
+        return;
+      }
+      throw error;
     }
   }
 
-  async listRecords() {
+  async listRecords(): Promise<JourneyRecord[]> {
     await this.ensureFile();
     const raw = await readFile(this.filePath, "utf8");
 
     try {
-      return (JSON.parse(raw) as JourneyRecord[]).map(sanitizeRecord);
-    } catch {
+      return JSON.parse(raw) as JourneyRecord[];
+    } catch (error) {
+      console.error(
+        `[JsonJournalStore] Failed to parse JSON at ${this.filePath}:`,
+        error instanceof Error ? error.message : error
+      );
       return [];
     }
   }
 
   async saveRecord(record: JourneyRecord) {
     const records = await this.listRecords();
-    const nextRecords = [sanitizeRecord(record), ...records].slice(0, 20);
+    const nextRecords = [record, ...records].slice(0, 20);
     await writeFile(this.filePath, `${JSON.stringify(nextRecords, null, 2)}\n`, "utf8");
     return record;
   }

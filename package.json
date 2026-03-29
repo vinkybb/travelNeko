@@ -2,13 +2,14 @@
   "name": "travel-neko",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:step": "tsx scripts/smoke-step.ts"
+    "test:smoke": "tsx scripts/smoke-journey.ts"
   },
   "dependencies": {
     "next": "^15.0.0",

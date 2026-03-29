@@ -640,6 +640,19 @@ img {
   font-size: 0.98rem;
 }
 
+.kiosk-panel label.file-upload-row input[type="file"] {
+  width: auto;
+  max-width: 100%;
+  padding: 8px 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.kiosk-panel label.file-upload-row .panel-tip {
+  margin-top: 2px;
+}
+
 .kiosk-panel input,
 .kiosk-panel textarea {
   width: 100%;

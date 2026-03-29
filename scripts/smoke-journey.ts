@@ -5,7 +5,7 @@ import path from "node:path";
 import { runJourney } from "../lib/orchestrator";
 
 async function main() {
-  const required = ["DEFAULT_BASE_URL", "DEFAULT_MODEL", "STEP_API_KEY"] as const;
+  const required = ["DEFAULT_BASE_URL", "DEFAULT_MODEL", "LLM_API_KEY"] as const;
   const missing = required.filter((key) => !process.env[key]);
 
   if (missing.length) {
@@ -51,4 +51,3 @@ main().catch((error) => {
   console.error(error instanceof Error ? error.message : error);
   process.exit(1);
 });
-

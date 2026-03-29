@@ -134,9 +134,9 @@ TravelNeko 想验证一件事：
 
 ### Model Integration
 
-- OpenAI 兼容接口接入
-- 默认接入 Step API
+- OpenAI 兼容接口接入（默认指向 OpenAI 官方 API，可通过环境变量改为任意兼容端点）
 - 支持配置文本模型、视觉模型和图片模型
+- 地图页「信息台」可选上传旅行照片（data URL 发往 `/api/journey` 的 `imageDataUrl`），由视觉模型提取氛围与线索
 
 ### Persistence
 
@@ -146,7 +146,7 @@ TravelNeko 想验证一件事：
 ### Testing
 
 - 本地单测：Agent 编排与存储逻辑
-- 真实 Step smoke test：验证接口联通和端到端生成
+- 真实 LLM smoke test：验证接口联通和端到端生成
 
 ## Tech Stack
 
@@ -166,7 +166,7 @@ lib/                      配置、多 Agent 编排、模型接入、存储
 data/journals.json        本地故事档案
 docs/screenshots/         README 截图素材
 docs/plans/               设计文档
-scripts/smoke-step.ts     真实接口 smoke test
+scripts/smoke-journey.ts  真实接口 smoke test
 tests/                    单元测试
 ```
 
@@ -180,15 +180,17 @@ npm install
 
 ### 2. Configure
 
-推荐环境变量：
+推荐环境变量（**一套中性命名**即可；对接 OpenAI 官方或千帆等兼容服务都只改 `DEFAULT_BASE_URL` 与模型名）：
 
 ```bash
-export DEFAULT_BASE_URL='https://api.stepfun.com/v1'
-export DEFAULT_MODEL='step-3.5-flash'
-export DEFAULT_VISION_MODEL='step-1o-turbo-vision'
-export DEFAULT_IMAGE_MODEL='step-1x-medium'
-export STEP_API_KEY='YOUR_KEY'
+export LLM_API_KEY='YOUR_KEY'
+export DEFAULT_BASE_URL='https://api.openai.com/v1'
+export DEFAULT_MODEL='gpt-4o-mini'
+export DEFAULT_VISION_MODEL='gpt-4o'
+export DEFAULT_IMAGE_MODEL='dall-e-3'
 export ENABLE_IMAGE_GENERATION='false'
+# 可选：HTTP 请求超时（毫秒，默认 120000）
+# export LLM_TIMEOUT_MS='120000'
 ```
 
 ### 3. Run In Dev Mode
@@ -238,24 +240,24 @@ npm run start -- --hostname 127.0.0.1 --port 3000
 npm test
 ```
 
-### Run Live Step Smoke Test
+### Run Live LLM Smoke Test
 
 ```bash
-npm run test:step
+npm run test:smoke
 ```
 
-## Step API Smoke Test
+## LLM Smoke Test
 
 项目内置了一个真实模型 smoke test，用来验证：
 
-- Step API Key 是否有效
+- `LLM_API_KEY` 是否有效
 - OpenAI 兼容 base URL 是否可用
 - 文本模型是否能完成一轮完整多 Agent 旅程生成
 
 运行：
 
 ```bash
-npm run test:step
+npm run test:smoke
 ```
 
 ## Notes About Running Locally

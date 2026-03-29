@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { JsonJournalStore } from "../lib/journal-store";
 import { runJourney } from "../lib/orchestrator";
-import type { JourneyLLMClient } from "../lib/step-client";
+import type { CompleteJsonOptions, JourneyLLMClient } from "../lib/openai-journey-client";
 import type {
   ArchiveStory,
   CompanionDialogue,
@@ -18,61 +18,57 @@ class FakeJourneyClient implements JourneyLLMClient {
   public calls: string[] = [];
   public generatedPrompt = "";
 
-  async completeJson<T>({
-    system,
-    imageDataUrl
-  }: {
-    system: string;
-    user: string;
-    model?: string;
-    imageDataUrl?: string;
-  }): Promise<T> {
+  async completeJson<T>({ system, imageDataUrl, schema }: CompleteJsonOptions<T>): Promise<T> {
     this.calls.push(system);
 
     if (system.includes("vision lens")) {
       expect(imageDataUrl).toContain("data:image/png;base64");
-      return {
+      const insight = {
         mood: "salt-air wonder",
         observedObjects: ["lantern pier", "wet footprints"],
         colorPalette: ["teal", "peach"],
         travelClue: "A fish-shaped bell glows near the pier.",
         interpretation: "The photo suggests a harbor that remembers old promises."
-      } satisfies ImageInsight as T;
+      } satisfies ImageInsight;
+      return schema.parse(insight) as T;
     }
 
     if (system.includes("Scout Cat")) {
-      return {
+      const scout = {
         title: "Moonlit Lantern Pier",
         weather: "misty sea breeze",
         atmosphere: "a playful hush before midnight",
         challenge: "The bell keeper will only speak in riddles.",
         wonder: "Each lantern carries a tiny pawprint constellation.",
         keepsakeHint: "a salt-crusted ticket stub"
-      } satisfies ScoutScene as T;
+      } satisfies ScoutScene;
+      return schema.parse(scout) as T;
     }
 
     if (system.includes("Companion Cat")) {
-      return {
+      const companion = {
         openingLine: "A caramel stray taps the map with its tail.",
         banter: [
-          "Scout Cat: The tide is gossiping again.",
-          "Companion Cat: Then let's ask it nicely.",
-          "Traveler Cat: I packed courage and sardines."
+          "伴猫: 潮水又在说闲话了。",
+          "伴猫: 那我们客气点问它。",
+          "伴猫: 我带了勇气和沙丁鱼罐头。"
         ],
         invitation: "Follow the cat choir to the last lit pier."
-      } satisfies CompanionDialogue as T;
+      } satisfies CompanionDialogue;
+      return schema.parse(companion) as T;
     }
 
     if (system.includes("Oracle Cat")) {
-      return {
+      const oracle = {
         hiddenClue: "The glowing bell rings only for homesick travelers.",
         emotionalShift: "Curiosity softens into belonging.",
         prophecy: "Tonight's keepsake will unlock tomorrow's shortcut."
-      } satisfies OracleClue as T;
+      } satisfies OracleClue;
+      return schema.parse(oracle) as T;
     }
 
     if (system.includes("Archivist Cat")) {
-      return {
+      const archive = {
         chapterTitle: "The Bell at Rainy Harbor",
         summary: "团子 followed a trail of lanterns and found a clue wrapped in sea mist.",
         story:
@@ -80,15 +76,17 @@ class FakeJourneyClient implements JourneyLLMClient {
         memoryTags: ["港口", "鱼铃", "潮汐", "结伴"],
         keepsake: "一张带盐粒的旧车票",
         nextHook: "车票背面写着通往山顶神社的时间。"
-      } satisfies ArchiveStory as T;
+      } satisfies ArchiveStory;
+      return schema.parse(archive) as T;
     }
 
-    return {
+    const painter = {
       postcardTitle: "Lantern Harbor Postcard",
       visualPrompt:
         "storybook postcard, curious cat on a misty pier, teal sea, peach lanterns, tactile paper grain, cinematic lighting",
       styleNotes: ["storybook texture", "teal-orange palette", "wide travel composition"]
-    } satisfies PainterDraft as T;
+    } satisfies PainterDraft;
+    return schema.parse(painter) as T;
   }
 
   async generateImage() {
@@ -131,4 +129,3 @@ describe("runJourney", () => {
     await rm(tempDirectory, { recursive: true, force: true });
   });
 });
-

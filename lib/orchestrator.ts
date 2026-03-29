@@ -9,7 +9,15 @@ import {
   buildPainterPrompt,
   buildScoutPrompt
 } from "./prompts";
-import { StepJourneyClient, type JourneyLLMClient } from "./step-client";
+import {
+  archiveStorySchema,
+  companionDialogueSchema,
+  imageInsightSchema,
+  oracleClueSchema,
+  painterDraftSchema,
+  scoutSceneSchema
+} from "./llm-schemas";
+import { OpenAIJourneyClient, type JourneyLLMClient } from "./openai-journey-client";
 import type {
   AgentNote,
   ArchiveStory,
@@ -108,7 +116,7 @@ async function maybeAnalyseImage(
     return null;
   }
 
-  return client.completeJson<ImageInsight>({
+  return client.completeJson({
     model: getPublicConfig().visionModel,
     system:
       "You are Oracle Cat's vision lens. Analyze the uploaded travel image for story-relevant details. Respond with a single JSON object only.",
@@ -118,7 +126,8 @@ async function maybeAnalyseImage(
 - colorPalette (array)
 - travelClue
 - interpretation`,
-    imageDataUrl
+    imageDataUrl,
+    schema: imageInsightSchema
   });
 }
 
@@ -126,7 +135,7 @@ export async function runJourney(
   input: JourneyRequest,
   dependencies: RunJourneyDependencies = {}
 ): Promise<JourneyResponse> {
-  const client = dependencies.client || new StepJourneyClient();
+  const client = dependencies.client || new OpenAIJourneyClient();
   const store = dependencies.store || new JsonJournalStore();
   const history = await store.listRecords();
   const historySummary = summarizeHistory(history);
@@ -140,7 +149,8 @@ export async function runJourney(
 
   const scout = await client.completeJson<ScoutScene>({
     system: scoutPrompt.system,
-    user: scoutPrompt.user
+    user: scoutPrompt.user,
+    schema: scoutSceneSchema
   });
 
   const companionPrompt = buildCompanionPrompt({
@@ -159,11 +169,13 @@ export async function runJourney(
   const [companion, oracle] = await Promise.all([
     client.completeJson<CompanionDialogue>({
       system: companionPrompt.system,
-      user: companionPrompt.user
+      user: companionPrompt.user,
+      schema: companionDialogueSchema
     }),
     client.completeJson<OracleClue>({
       system: oraclePrompt.system,
-      user: oraclePrompt.user
+      user: oraclePrompt.user,
+      schema: oracleClueSchema
     })
   ]);
 
@@ -178,7 +190,8 @@ export async function runJourney(
 
   const archive = await client.completeJson<ArchiveStory>({
     system: archivePrompt.system,
-    user: archivePrompt.user
+    user: archivePrompt.user,
+    schema: archiveStorySchema
   });
 
   let painter: PainterDraft | null = null;
@@ -194,7 +207,8 @@ export async function runJourney(
 
     painter = await client.completeJson<PainterDraft>({
       system: painterPrompt.system,
-      user: painterPrompt.user
+      user: painterPrompt.user,
+      schema: painterDraftSchema
     });
     postcardImageUrl = await client.generateImage({
       prompt: painter.visualPrompt
