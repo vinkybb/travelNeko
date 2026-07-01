@@ -18,6 +18,8 @@ const MAX_SESSIONS = 30;
 export interface ChatStore {
   getSession(id: string): Promise<ChatSession | null>;
   saveSession(session: ChatSession): Promise<ChatSession>;
+  /** Remove every stored conversation. */
+  clearSessions(): Promise<void>;
 }
 
 export class JsonChatStore implements ChatStore {
@@ -62,5 +64,10 @@ export class JsonChatStore implements ChatStore {
     const nextSessions = [session, ...withoutCurrent].slice(0, MAX_SESSIONS);
     await writeFile(this.filePath, `${JSON.stringify(nextSessions, null, 2)}\n`, "utf8");
     return session;
+  }
+
+  async clearSessions(): Promise<void> {
+    await mkdir(path.dirname(this.filePath), { recursive: true });
+    await writeFile(this.filePath, "[]\n", "utf8");
   }
 }

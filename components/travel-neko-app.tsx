@@ -1135,7 +1135,7 @@ export function TravelNekoApp({
     }
 
     const confirmed = window.confirm(
-      "确定要清空所有故事手账吗？此操作不可恢复，本地存档会被永久删除。"
+      "确定要重置吗？手账故事、剧情进度和聊天记录都会被永久清空，之前触发过的剧情也会重新变得可触发。此操作不可恢复。"
     );
 
     if (!confirmed) {
@@ -1156,7 +1156,9 @@ export function TravelNekoApp({
       setRecords([]);
       setSelectedId(null);
       setRequestStage(-1);
-      setStatusFeed(["手账已清空，本地故事记录已全部移除。你可以从一张空白地图重新开始旅行。"]);
+      setStatusFeed([
+        "已重置：手账、剧情进度与聊天记录都清空了，所有剧情又可以重新触发。"
+      ]);
     } catch (resetError) {
       setError(
         resetError instanceof Error

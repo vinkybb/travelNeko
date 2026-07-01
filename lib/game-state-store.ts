@@ -60,6 +60,8 @@ export interface GameStateStore {
   applyPlot(plot?: PlotBeat | null): Promise<GameState>;
   /** Journey convenience: record a visit and apply the plot in one write. */
   commitJourney(args: { zoneId?: string; plot?: PlotBeat | null }): Promise<GameState>;
+  /** Wipe all progress (flags, completed plots, visits, relationships). */
+  reset(): Promise<GameState>;
 }
 
 export class JsonGameStateStore implements GameStateStore {
@@ -156,6 +158,14 @@ export class JsonGameStateStore implements GameStateStore {
       }
     }
 
+    await this.writeState(state);
+    return state;
+  }
+
+  /** Reset progress so once-only plots become eligible again. */
+  async reset() {
+    await mkdir(path.dirname(this.filePath), { recursive: true });
+    const state = emptyState();
     await this.writeState(state);
     return state;
   }
