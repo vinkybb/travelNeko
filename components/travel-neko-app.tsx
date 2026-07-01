@@ -1290,6 +1290,29 @@ export function TravelNekoApp({
 
             </div>
 
+            <div className="control-pad-wrap">
+              <div className="control-copy">
+                <strong>怎么移动</strong>
+                <p>用 `WASD` / 方向键走动，也可以直接点地图空地或某只猫自动前往。</p>
+              </div>
+              <div className="control-pad">
+                <button className="control-key" onClick={() => movePlayerBy(0, -4)} type="button">
+                  ↑
+                </button>
+                <div className="control-row">
+                  <button className="control-key" onClick={() => movePlayerBy(-4, 0)} type="button">
+                    ←
+                  </button>
+                  <button className="control-key" onClick={() => movePlayerBy(4, 0)} type="button">
+                    →
+                  </button>
+                </div>
+                <button className="control-key" onClick={() => movePlayerBy(0, 4)} type="button">
+                  ↓
+                </button>
+              </div>
+            </div>
+
             <div className="action-dock">
               <div className="dock-target">
                 <CatSprite accent={activeNpc.accent} body={activeNpc.body} highlight />
@@ -1328,6 +1351,14 @@ export function TravelNekoApp({
                 >
                   {isSubmitting && isAutoExploring ? "AI 正在探索..." : "让 AI 自动探索"}
                 </button>
+                <label className="checkbox-row dock-checkbox">
+                  <input
+                    checked={form.generatePostcard}
+                    onChange={(event) => updateField("generatePostcard", event.target.checked)}
+                    type="checkbox"
+                  />
+                  归档时顺手让画师猫画一张明信片
+                </label>
                 <button
                   aria-expanded={showCustomize}
                   className="text-button"
@@ -1336,6 +1367,21 @@ export function TravelNekoApp({
                 >
                   自定义这次相遇 {showCustomize ? "▲" : "▾"}
                 </button>
+              </div>
+            </div>
+
+            <div className="nearby-strip dock-nearby">
+              <span>附近的猫 · 写进手账或自动探索时可能来凑几句</span>
+              <div className="chip-row">
+                {nearbyCats.length ? (
+                  nearbyCats.map((cat) => (
+                    <span className="route-chip" key={cat.id}>
+                      {cat.alias}
+                    </span>
+                  ))
+                ) : (
+                  <span className="route-chip">这附近暂时只有它一只猫</span>
+                )}
               </div>
             </div>
 
@@ -1395,60 +1441,6 @@ export function TravelNekoApp({
                   ) : null}
                 </label>
 
-                <label className="checkbox-row">
-                  <input
-                    checked={form.generatePostcard}
-                    onChange={(event) => updateField("generatePostcard", event.target.checked)}
-                    type="checkbox"
-                  />
-                  顺手让画师猫起一张明信片草图
-                </label>
-
-                <div className="control-pad-wrap">
-                  <div className="control-copy">
-                    <strong>手动移动</strong>
-                    <p>支持 `WASD` / 方向键，也可以直接点地图空地。</p>
-                  </div>
-                  <div className="control-pad">
-                    <button className="control-key" onClick={() => movePlayerBy(0, -4)} type="button">
-                      ↑
-                    </button>
-                    <div className="control-row">
-                      <button
-                        className="control-key"
-                        onClick={() => movePlayerBy(-4, 0)}
-                        type="button"
-                      >
-                        ←
-                      </button>
-                      <button
-                        className="control-key"
-                        onClick={() => movePlayerBy(4, 0)}
-                        type="button"
-                      >
-                        →
-                      </button>
-                    </div>
-                    <button className="control-key" onClick={() => movePlayerBy(0, 4)} type="button">
-                      ↓
-                    </button>
-                  </div>
-                </div>
-
-                <div className="nearby-strip">
-                  <span>附近可能插话的猫</span>
-                  <div className="chip-row">
-                    {nearbyCats.length ? (
-                      nearbyCats.map((cat) => (
-                        <span className="route-chip" key={cat.id}>
-                          {cat.alias}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="route-chip">这附近暂时只有它一只猫</span>
-                    )}
-                  </div>
-                </div>
               </div>
             ) : null}
 

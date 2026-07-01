@@ -493,10 +493,6 @@ img {
   background: rgba(255, 255, 255, 0.5);
 }
 
-.customize-panel .nearby-strip {
-  margin-top: 4px;
-}
-
 /* Inline run progress (replaces persistent phase list + status feed) */
 .run-progress {
   display: flex;
@@ -1022,7 +1018,7 @@ img {
   gap: 16px;
   align-items: center;
   padding: 14px 16px;
-  margin-bottom: 16px;
+  margin: 16px 0 0;
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.62);
   border: 1px solid var(--line);
@@ -1065,6 +1061,32 @@ img {
   width: 18px;
   height: 18px;
   margin: 0;
+}
+
+/* Postcard option lives next to the archive/explore actions */
+.dock-checkbox {
+  margin-bottom: 0;
+  align-items: flex-start;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.dock-checkbox input {
+  margin-top: 2px;
+}
+
+/* Nearby-cats hint sits under the action dock as an archiving cue */
+.dock-nearby {
+  margin-top: 12px;
+  padding: 12px 16px;
+  border-radius: 18px;
+  border: 1px dashed rgba(22, 36, 32, 0.16);
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.dock-nearby > span {
+  font-size: 0.86rem;
 }
 
 .error-text {
