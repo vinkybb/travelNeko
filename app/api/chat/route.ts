@@ -2,40 +2,27 @@ import { NextResponse } from "next/server";
 import { APIConnectionError, APIError } from "openai";
 import { z } from "zod";
 
-import { runJourney } from "../../../lib/orchestrator";
+import { runChatTurn } from "../../../lib/chat-orchestrator";
 
-/** Allow long multi-agent runs on serverless (seconds). */
-export const maxDuration = 300;
+/** Allow the director + reply calls room to finish on serverless. */
+export const maxDuration = 120;
 
-/** Rough cap for base64 data URLs (~1.8MB binary) to limit memory and parse time. */
-const MAX_IMAGE_DATA_URL_CHARS = 2_500_000;
-
-const journeySchema = z.object({
+const chatSchema = z.object({
+  sessionId: z.string().trim().min(1).max(80).optional(),
   catName: z.string().trim().min(1).max(30),
-  destination: z.string().trim().min(2).max(60),
-  mood: z.string().trim().min(2).max(30),
-  travelStyle: z.string().trim().min(2).max(40),
-  userAction: z.string().trim().min(2).max(120),
-  currentArea: z.string().trim().min(2).max(60).optional(),
-  zoneId: z.string().trim().min(1).max(40).optional(),
-  focusCatName: z.string().trim().min(1).max(40).optional(),
-  focusCatRole: z.string().trim().min(1).max(40).optional(),
-  focusNpcId: z.string().trim().min(1).max(40).optional(),
+  zoneId: z.string().trim().min(1).max(40),
+  zoneName: z.string().trim().min(1).max(60),
+  npcId: z.string().trim().min(1).max(40),
+  npcAlias: z.string().trim().min(1).max(40),
+  npcRole: z.string().trim().min(1).max(40),
   nearbyCats: z.array(z.string().trim().min(1).max(40)).max(6).optional(),
-  encounterMode: z.enum(["manual_talk", "auto_explore"]).optional(),
-  conversation: z.string().trim().min(1).max(6000).optional(),
-  imageDataUrl: z
-    .string()
-    .trim()
-    .max(MAX_IMAGE_DATA_URL_CHARS, "Image payload is too large.")
-    .optional(),
-  generatePostcard: z.boolean().optional().default(false)
+  playerMessage: z.string().trim().min(1).max(500)
 });
 
 export async function POST(request: Request) {
   try {
     const json = await request.json();
-    const parsed = journeySchema.safeParse(json);
+    const parsed = chatSchema.safeParse(json);
     if (!parsed.success) {
       return NextResponse.json(
         { error: "Invalid request", issues: parsed.error.flatten() },
@@ -43,7 +30,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = await runJourney(parsed.data);
+    const result = await runChatTurn(parsed.data);
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof APIConnectionError) {

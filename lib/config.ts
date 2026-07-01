@@ -23,6 +23,8 @@ export function getAppConfig() {
       process.env.JOURNAL_PATH || path.join(cwd, "data", "journals.json"),
     gameStatePath:
       process.env.GAME_STATE_PATH || path.join(cwd, "data", "game-state.json"),
+    chatSessionsPath:
+      process.env.CHAT_SESSIONS_PATH || path.join(cwd, "data", "chat-sessions.json"),
     plotsDir: process.env.PLOTS_DIR || path.join(cwd, "content", "plots"),
     /** Director agent judges plot triggers; set false to fall back to rule-based picks. */
     plotDirectorEnabled: process.env.ENABLE_PLOT_DIRECTOR !== "false",

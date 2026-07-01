@@ -10,7 +10,8 @@ import {
   useState
 } from "react";
 
-import type { JourneyRecord, JourneyResponse } from "../lib/types";
+import type { ChatMessage, JourneyRecord, JourneyResponse } from "../lib/types";
+import { ChatWindow } from "./chat-window";
 
 type PublicConfig = JourneyResponse["config"];
 
@@ -220,7 +221,7 @@ const requestPhases = [
 const defaultNpc = npcCats[0];
 
 const initialForm = {
-  catName: "团子",
+  catName: "石小猫",
   mood: defaultNpc.mood,
   travelStyle: defaultNpc.travelStyle,
   userAction: defaultNpc.actionIdea,
@@ -461,6 +462,7 @@ export function TravelNekoApp({
   const [isAutoExploring, setIsAutoExploring] = useState(false);
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [showCustomize, setShowCustomize] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const walkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stageTickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const didApplyQueryDemoRef = useRef(false);
@@ -562,6 +564,7 @@ export function TravelNekoApp({
   }, []);
 
   const activeNpc = getNpcById(selectedNpcId);
+  const activeZone = getZoneById(activeNpc.zoneId);
   const currentZone = findClosestZone(playerPosition);
   const activeRecord =
     records.find((record) => record.id === selectedId) ?? records[0] ?? null;
@@ -572,9 +575,6 @@ export function TravelNekoApp({
   const talkDistance =
     getDistance(playerPosition, getMeetPoint(activeNpc)) <= 8 ||
     getDistance(playerPosition, { x: activeNpc.x, y: activeNpc.y }) <= 12;
-  const talkButtonLabel = talkDistance
-    ? `和 ${activeNpc.alias} 聊天`
-    : `走过去并和 ${activeNpc.alias} 聊天`;
   const currentPhase =
     requestStage >= 0
       ? requestPhases[Math.min(requestStage, requestPhases.length - 1)]
@@ -823,6 +823,8 @@ export function TravelNekoApp({
     mode: "manual_talk" | "auto_explore";
     actionText: string;
     hydrateBeforeWalk?: boolean;
+    /** Real chat transcript to archive into a story chapter. */
+    conversation?: string;
     /** Avoid stale form in status ticker after setState (e.g. auto explore). */
     ticker?: { catName: string; userActionPreview: string };
   }) {
@@ -882,6 +884,10 @@ export function TravelNekoApp({
         payload.imageDataUrl = imageDataUrl;
       }
 
+      if (options.conversation) {
+        payload.conversation = options.conversation;
+      }
+
       const response = await fetch("/api/journey", {
         method: "POST",
         headers: {
@@ -918,13 +924,34 @@ export function TravelNekoApp({
     }
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  // The stage <form> only wraps inputs; archiving is driven by explicit buttons,
+  // so swallow accidental Enter submits instead of running a journey.
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+  }
+
+  const handleChatMessages = useCallback((messages: ChatMessage[]) => {
+    setChatMessages(messages);
+  }, []);
+
+  async function handleArchiveChat() {
+    if (isSubmitting) {
+      return;
+    }
+    if (!chatMessages.length) {
+      setError("先和这只猫聊几句，再把这段相遇写进手账。");
+      return;
+    }
+
+    const transcript = chatMessages
+      .map((message) => `${message.speaker}：${message.text}`)
+      .join("\n");
 
     await executeJourney({
       npc: activeNpc,
       mode: "manual_talk",
-      actionText: `${form.userAction}。目标对象：${activeNpc.alias}（${activeNpc.role}），希望附近的猫偶尔也插两句。`,
+      actionText: `把 ${form.catName} 和 ${activeNpc.alias}（${activeNpc.role}）的这段对话整理成一章旅行故事。`,
+      conversation: transcript,
       hydrateBeforeWalk: false
     });
   }
@@ -1202,10 +1229,17 @@ export function TravelNekoApp({
               </div>
 
               <div className="dock-actions">
-                <button className="primary-button" disabled={isSubmitting} type="submit">
+                <button
+                  className="primary-button"
+                  disabled={isSubmitting || chatMessages.length === 0}
+                  onClick={handleArchiveChat}
+                  type="button"
+                >
                   {isSubmitting && !isAutoExploring
-                    ? `正在和 ${activeNpc.alias} 对话...`
-                    : talkButtonLabel}
+                    ? "正在写进手账..."
+                    : chatMessages.length === 0
+                    ? "先聊几句，再写进手账"
+                    : "把这段相遇写进手账"}
                 </button>
                 <button
                   className="ghost-button wide"
@@ -1352,6 +1386,20 @@ export function TravelNekoApp({
             ) : null}
 
             {error ? <p className="error-text">{error}</p> : null}
+          </article>
+
+          <article className="paper-card chat-panel">
+            <ChatWindow
+              catName={form.catName}
+              key={activeNpc.id}
+              nearbyCats={nearbyCats.map((cat) => `${cat.alias}(${cat.role})`)}
+              npcAlias={activeNpc.alias}
+              npcId={activeNpc.id}
+              npcRole={activeNpc.role}
+              onMessagesChange={handleChatMessages}
+              zoneId={activeZone.id}
+              zoneName={activeZone.name}
+            />
           </article>
 
           <article className="paper-card story-panel">

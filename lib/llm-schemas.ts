@@ -53,3 +53,9 @@ export const plotDirectorSchema = z.object({
   selectedPlotId: z.string().nullable(),
   reason: z.string()
 });
+
+/** A single in-character NPC reply for the multi-turn chat flow. */
+export const chatReplySchema = z.object({
+  reply: z.string(),
+  mood: z.string().optional()
+});

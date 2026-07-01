@@ -180,18 +180,20 @@ npm install
 
 ### 2. Configure
 
-推荐环境变量（**一套中性命名**即可；对接 OpenAI 官方或千帆等兼容服务都只改 `DEFAULT_BASE_URL` 与模型名）：
+复制环境变量模板到 `.env.local`（已被 git 忽略，Next.js 会在启动时自动加载），然后填入你的 key：
 
 ```bash
-export LLM_API_KEY='YOUR_KEY'
-export DEFAULT_BASE_URL='https://api.openai.com/v1'
-export DEFAULT_MODEL='gpt-4o-mini'
-export DEFAULT_VISION_MODEL='gpt-4o'
-export DEFAULT_IMAGE_MODEL='dall-e-3'
-export ENABLE_IMAGE_GENERATION='false'
-# 可选：HTTP 请求超时（毫秒，默认 120000）
-# export LLM_TIMEOUT_MS='120000'
+cp .env.example .env.local
+# 然后编辑 .env.local，至少把 LLM_API_KEY 换成真实值
 ```
+
+`.env.example` 里列出了全部可配置项（**一套中性命名**；对接 OpenAI 官方或千帆等兼容服务只需改 `DEFAULT_BASE_URL` 与模型名）。最关键的一项：
+
+```bash
+LLM_API_KEY=YOUR_KEY   # 必填，缺失会导致 /api/* 返回 500
+```
+
+> 改动 `.env.local` 后需重启 dev server（Next.js 只在启动时读取环境变量）。
 
 ### 3. Run In Dev Mode
 

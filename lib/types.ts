@@ -17,6 +17,8 @@ export type JourneyRequest = {
   encounterMode?: EncounterMode;
   imageDataUrl?: string;
   generatePostcard?: boolean;
+  /** Real chat transcript to archive into a story, when this journey summarizes a conversation. */
+  conversation?: string;
 };
 
 /** Conditions a plot must satisfy before it is eligible to fire. */
@@ -66,6 +68,50 @@ export type TriggeredPlot = {
   id: string;
   title: string;
   reason: string;
+};
+
+export type ChatRole = "player" | "npc";
+
+/** A single turn in a multi-turn conversation with an NPC. */
+export type ChatMessage = {
+  role: ChatRole;
+  speaker: string;
+  text: string;
+  at: string;
+  /** Set on the NPC message whose turn triggered/advanced a plot. */
+  triggeredPlot?: TriggeredPlot | null;
+};
+
+/** A persisted conversation between the traveler and one NPC. */
+export type ChatSession = {
+  id: string;
+  npcId: string;
+  npcAlias: string;
+  npcRole: string;
+  zoneId: string;
+  zoneName: string;
+  catName: string;
+  messages: ChatMessage[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ChatTurnRequest = {
+  sessionId?: string;
+  catName: string;
+  zoneId: string;
+  zoneName: string;
+  npcId: string;
+  npcAlias: string;
+  npcRole: string;
+  nearbyCats?: string[];
+  playerMessage: string;
+};
+
+export type ChatTurnResponse = {
+  session: ChatSession;
+  reply: ChatMessage;
+  triggeredPlot: TriggeredPlot | null;
 };
 
 export type ImageInsight = {

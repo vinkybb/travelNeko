@@ -46,7 +46,8 @@ function makeRecord(id: string, createdAt: string): JourneyRecord {
     },
     painter: null,
     postcardImageUrl: null,
-    agentNotes: []
+    agentNotes: [],
+    triggeredPlot: null
   };
 }
 

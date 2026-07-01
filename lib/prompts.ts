@@ -23,6 +23,8 @@ type JourneyPromptInput = {
   imageInsight: ImageInsight | null;
   /** When set, the pipeline must anchor the scene around this authored beat. */
   activePlot?: PlotBeat | null;
+  /** Real chat transcript when this run archives a live conversation. */
+  conversation?: string;
   scout?: ScoutScene;
   companion?: CompanionDialogue;
   oracle?: OracleClue;
@@ -47,6 +49,18 @@ function describeActivePlot(activePlot: PlotBeat | null | undefined) {
 - Synopsis: ${activePlot.synopsis}
 - Required story beats:
 ${beats}`;
+}
+
+/**
+ * Render the real conversation the player had, so the pipeline archives what
+ * actually happened instead of inventing a new exchange.
+ */
+function describeConversation(conversation: string | undefined) {
+  if (!conversation) {
+    return "";
+  }
+
+  return `\nReal conversation transcript to base this scene and story on (do not contradict it):\n${conversation}\n`;
 }
 
 function stringifyImageInsight(imageInsight: ImageInsight | null) {
@@ -77,7 +91,7 @@ export function buildScoutPrompt(input: JourneyPromptInput) {
 - Image insight: ${stringifyImageInsight(input.imageInsight)}
 
 ${describeActivePlot(input.activePlot)}
-
+${describeConversation(input.conversation)}
 Return JSON with keys:
 - title
 - weather
@@ -106,7 +120,7 @@ Traveler:
 - Encounter mode: ${input.encounterMode || "manual_talk"}
 
 ${describeActivePlot(input.activePlot)}
-
+${describeConversation(input.conversation)}
 Return JSON with keys:
 - openingLine
 - banter (array of exactly 3 short lines, each prefixed with a speaker name like "伴猫: ..."; the focus NPC should speak most, but nearby cats may occasionally interject)
@@ -164,7 +178,7 @@ Oracle Cat:
 ${JSON.stringify(input.oracle, null, 2)}
 
 ${describeActivePlot(input.activePlot)}
-
+${describeConversation(input.conversation)}
 Return JSON with keys:
 - chapterTitle
 - summary
@@ -194,6 +208,44 @@ Return JSON with keys:
 - postcardTitle
 - visualPrompt
 - styleNotes (array of exactly 3 items)`
+  };
+}
+
+type ChatReplyInput = {
+  catName: string;
+  npcAlias: string;
+  npcRole: string;
+  zoneName: string;
+  nearbyCats?: string[];
+  /** Rendered transcript of recent turns, oldest first. */
+  historyText: string;
+  playerMessage: string;
+  activePlot?: PlotBeat | null;
+};
+
+/**
+ * One in-character reply for the live chat. When a plot is active the NPC must
+ * steer the conversation toward its beats without breaking character.
+ */
+export function buildChatReplyPrompt(input: ChatReplyInput) {
+  return {
+    system:
+      `You are ${input.npcAlias}, a ${input.npcRole} cat in a cozy travelling-cat game. Stay fully in character and reply to the traveler in warm, playful Chinese. Keep it to one short conversational turn (1-3 sentences), never narrate stage directions in brackets, and never break the fourth wall. ` +
+      JSON_ONLY_SUFFIX,
+    user: `Setting: ${input.zoneName}
+Traveler cat: ${input.catName}
+Nearby cats who exist but should not take over: ${(input.nearbyCats || []).join(", ") || "none"}
+
+Recent conversation (oldest first):
+${input.historyText || "(this is the first message)"}
+
+Traveler just said: "${input.playerMessage}"
+
+${describeActivePlot(input.activePlot)}
+
+Return JSON with keys:
+- reply: your single in-character response (Chinese). If a plot beat is active, naturally move the conversation toward it.
+- mood: one or two words describing your current mood (optional)`
   };
 }
 

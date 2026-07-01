@@ -54,6 +54,11 @@ function normalizeState(value: unknown): GameState {
 
 export interface GameStateStore {
   getState(): Promise<GameState>;
+  /** Increment the visit counter for a zone. */
+  recordVisit(zoneId?: string): Promise<GameState>;
+  /** Apply a fired plot's effects (completed / flags / relationship). */
+  applyPlot(plot?: PlotBeat | null): Promise<GameState>;
+  /** Journey convenience: record a visit and apply the plot in one write. */
   commitJourney(args: { zoneId?: string; plot?: PlotBeat | null }): Promise<GameState>;
 }
 
@@ -92,10 +97,44 @@ export class JsonGameStateStore implements GameStateStore {
     }
   }
 
+  /** Bump the visit counter for a zone (used when a new encounter begins). */
+  async recordVisit(zoneId?: string) {
+    const state = await this.getState();
+    if (zoneId) {
+      state.zoneVisits[zoneId] = (state.zoneVisits[zoneId] ?? 0) + 1;
+      await this.writeState(state);
+    }
+    return state;
+  }
+
   /**
-   * Record that a journey happened: bump the zone visit counter and, when a
-   * plot fired, mark it complete (if once), set flags, and apply relationship
-   * deltas. Returns the updated state.
+   * Apply a fired plot: mark it complete (if once), set its flags, and apply
+   * relationship deltas. A null plot is a no-op.
+   */
+  async applyPlot(plot?: PlotBeat | null) {
+    const state = await this.getState();
+    if (!plot) {
+      return state;
+    }
+
+    if (plot.once && !state.completedPlots.includes(plot.id)) {
+      state.completedPlots.push(plot.id);
+    }
+    for (const flag of plot.effects?.setFlags ?? []) {
+      if (!state.flags.includes(flag)) {
+        state.flags.push(flag);
+      }
+    }
+    for (const [npcId, delta] of Object.entries(plot.effects?.relationship ?? {})) {
+      state.relationship[npcId] = (state.relationship[npcId] ?? 0) + delta;
+    }
+
+    await this.writeState(state);
+    return state;
+  }
+
+  /**
+   * Journey convenience: record a visit and apply the plot in one write.
    */
   async commitJourney({ zoneId, plot }: { zoneId?: string; plot?: PlotBeat | null }) {
     const state = await this.getState();
@@ -103,18 +142,15 @@ export class JsonGameStateStore implements GameStateStore {
     if (zoneId) {
       state.zoneVisits[zoneId] = (state.zoneVisits[zoneId] ?? 0) + 1;
     }
-
     if (plot) {
       if (plot.once && !state.completedPlots.includes(plot.id)) {
         state.completedPlots.push(plot.id);
       }
-
       for (const flag of plot.effects?.setFlags ?? []) {
         if (!state.flags.includes(flag)) {
           state.flags.push(flag);
         }
       }
-
       for (const [npcId, delta] of Object.entries(plot.effects?.relationship ?? {})) {
         state.relationship[npcId] = (state.relationship[npcId] ?? 0) + delta;
       }
