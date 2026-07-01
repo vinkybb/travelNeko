@@ -305,6 +305,22 @@ function findClosestZone(position: MapPosition) {
   }, zones[0]);
 }
 
+// Each cat lives alone at its own landmark, so "nearby" means physically close
+// on the map rather than sharing a zone (same-zone siblings never exist, which
+// would leave the list — and the story's banter source — permanently empty).
+const NEARBY_RADIUS = 46;
+const NEARBY_LIMIT = 3;
+
+function getNearbyCats(target: NpcCat) {
+  return npcCats
+    .filter((cat) => cat.id !== target.id)
+    .map((cat) => ({ cat, distance: getDistance(target, cat) }))
+    .filter((entry) => entry.distance <= NEARBY_RADIUS)
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, NEARBY_LIMIT)
+    .map((entry) => entry.cat);
+}
+
 function formatDate(dateString: string) {
   // Pin the time zone so server (often UTC) and client render the identical
   // string; otherwise the SSR'd timestamp differs from the client and React
@@ -658,9 +674,7 @@ export function TravelNekoApp({
   const activeRecord =
     records.find((record) => record.id === selectedId) ?? records[0] ?? null;
   const activeRecordFocusName = activeRecord?.input.focusCatName || activeNpc.alias;
-  const nearbyCats = npcCats.filter(
-    (npc) => npc.zoneId === activeNpc.zoneId && npc.id !== activeNpc.id
-  );
+  const nearbyCats = getNearbyCats(activeNpc);
   const talkDistance =
     getDistance(playerPosition, getMeetPoint(activeNpc)) <= 8 ||
     getDistance(playerPosition, { x: activeNpc.x, y: activeNpc.y }) <= 12;
@@ -928,9 +942,7 @@ export function TravelNekoApp({
   }) {
     const npc = options.npc;
     const zone = getZoneById(npc.zoneId);
-    const sideCats = npcCats.filter(
-      (cat) => cat.zoneId === npc.zoneId && cat.id !== npc.id
-    );
+    const sideCats = getNearbyCats(npc);
 
     const catName = options.ticker?.catName ?? form.catName;
 
