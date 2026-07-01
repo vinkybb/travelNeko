@@ -228,6 +228,10 @@ const initialForm = {
   generatePostcard: false
 };
 
+const PLAYER_FUR = "#b9c3cb";
+const PLAYER_STRIPE = "#5c6870";
+const PLAYER_ACCENT = "#ffe58d";
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
@@ -266,7 +270,11 @@ function findClosestZone(position: MapPosition) {
 }
 
 function formatDate(dateString: string) {
+  // Pin the time zone so server (often UTC) and client render the identical
+  // string; otherwise the SSR'd timestamp differs from the client and React
+  // throws a hydration mismatch.
   return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
     month: "short",
     day: "numeric",
     hour: "2-digit",
@@ -383,12 +391,17 @@ function CatSprite({
   accent,
   body,
   highlight = false,
-  moving = false
+  moving = false,
+  tabby = false,
+  stripe
 }: {
   accent: string;
   body: string;
   highlight?: boolean;
   moving?: boolean;
+  /** Overlay silver-tabby markings (forehead "M", back stripes, pink nose). */
+  tabby?: boolean;
+  stripe?: string;
 }) {
   return (
     <svg
@@ -408,9 +421,27 @@ function CatSprite({
       <path d="M40 30L53 14L58 36Z" fill={body} />
       <path d="M64 36L70 14L84 30Z" fill={body} />
       <circle cx="62" cy="46" fill={body} r="28" />
+      {tabby ? (
+        <g
+          fill="none"
+          opacity="0.8"
+          stroke={stripe ?? "#5c6870"}
+          strokeLinecap="round"
+          strokeWidth="3"
+        >
+          <path d="M54 33L56 22" />
+          <path d="M62 34L62 21" />
+          <path d="M70 33L68 22" />
+          <path d="M40 30L48 34" />
+          <path d="M84 30L76 34" />
+          <path d="M40 98C50 92 74 92 84 98" />
+          <path d="M42 108C52 103 72 103 82 108" />
+        </g>
+      ) : null}
       <ellipse cx="62" cy="57" fill="#fef8f0" rx="16" ry="12" />
       <circle cx="52" cy="46" fill="#182221" r="4" />
       <circle cx="72" cy="46" fill="#182221" r="4" />
+      {tabby ? <path d="M59 51L65 51L62 55Z" fill="#d98a86" /> : null}
       <path
         d="M58 56C60 58 64 58 66 56"
         fill="none"
@@ -463,6 +494,7 @@ export function TravelNekoApp({
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [showCustomize, setShowCustomize] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [archiveNudge, setArchiveNudge] = useState(false);
   const walkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stageTickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const didApplyQueryDemoRef = useRef(false);
@@ -932,6 +964,13 @@ export function TravelNekoApp({
 
   const handleChatMessages = useCallback((messages: ChatMessage[]) => {
     setChatMessages(messages);
+    // A plot beat just fired — that's a natural chapter boundary worth saving.
+    if (messages[messages.length - 1]?.triggeredPlot) {
+      setArchiveNudge(true);
+    } else if (messages.length === 0) {
+      // Conversation reset (switched NPC): drop any stale suggestion.
+      setArchiveNudge(false);
+    }
   }, []);
 
   async function handleArchiveChat() {
@@ -942,6 +981,8 @@ export function TravelNekoApp({
       setError("先和这只猫聊几句，再把这段相遇写进手账。");
       return;
     }
+
+    setArchiveNudge(false);
 
     const transcript = chatMessages
       .map((message) => `${message.speaker}：${message.text}`)
@@ -1129,7 +1170,12 @@ export function TravelNekoApp({
                 </div>
               ))}
               <div className="preview-player" style={{ left: "50%", top: "82%" }}>
-                <CatSprite accent="#ffe58d" body="#184c48" />
+                <CatSprite
+                  accent={PLAYER_ACCENT}
+                  body={PLAYER_FUR}
+                  stripe={PLAYER_STRIPE}
+                  tabby
+                />
               </div>
             </div>
 
@@ -1208,7 +1254,14 @@ export function TravelNekoApp({
                 style={{ left: `${playerPosition.x}%`, top: `${playerPosition.y}%` }}
               >
                 <div className="cat-shell">
-                  <CatSprite accent="#ffe58d" body="#184c48" highlight moving={isWalking} />
+                  <CatSprite
+                    accent={PLAYER_ACCENT}
+                    body={PLAYER_FUR}
+                    highlight
+                    moving={isWalking}
+                    stripe={PLAYER_STRIPE}
+                    tabby
+                  />
                   <span className="player-label">{form.catName}</span>
                   <span className="cat-subtitle">主角猫</span>
                 </div>
@@ -1229,8 +1282,13 @@ export function TravelNekoApp({
               </div>
 
               <div className="dock-actions">
+                {archiveNudge && !isSubmitting ? (
+                  <p className="archive-nudge">刚发生了值得记下的事，把它写进手账吧 →</p>
+                ) : null}
                 <button
-                  className="primary-button"
+                  className={`primary-button${
+                    archiveNudge && !isSubmitting ? " is-suggested" : ""
+                  }`}
                   disabled={isSubmitting || chatMessages.length === 0}
                   onClick={handleArchiveChat}
                   type="button"
