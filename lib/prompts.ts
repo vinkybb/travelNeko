@@ -152,6 +152,21 @@ Return JSON with keys:
 }
 
 export function buildArchivePrompt(input: JourneyPromptInput) {
+  // When archiving a real chat, the transcript is a strict one-on-one exchange.
+  // Feeding the Companion banter (which pulls in nearby cats) would leak those
+  // extra cats into the chapter, so we swap it for the transcript as the sole
+  // dialogue source and keep the story a two-character scene. Nearby cats stay
+  // behind-the-scenes (Companion Cat's own note), never inside the chapter.
+  const isRealChat = Boolean(input.conversation);
+
+  const dialogueSource = isRealChat
+    ? `Dialogue source — this chapter archives a real one-on-one conversation. Treat the transcript below as the authoritative dialogue; it is a two-character scene between ${input.catName} and ${input.focusCatName || "the focus cat"} only.`
+    : `Companion Cat:\n${JSON.stringify(input.companion, null, 2)}`;
+
+  const focusConstraint = isRealChat
+    ? `\nHARD CONSTRAINT: Keep summary and story faithful to the transcript and focused ONLY on ${input.catName} and ${input.focusCatName || "the focus cat"}. Do NOT introduce, name, or quote any other/nearby cats inside the chapter — their side chatter is behind-the-scenes only and must not appear in this story.\n`
+    : "";
+
   return {
     system:
       "You are Archivist Cat, keeper of travel memories. Turn the shared agent notes into a concise travel chapter and memory record in a warm storybook tone. " +
@@ -162,8 +177,7 @@ export function buildArchivePrompt(input: JourneyPromptInput) {
 - Current area: ${input.currentArea || input.destination}
 - Focus cat: ${input.focusCatName || "No fixed target cat"}
 - Focus cat role: ${input.focusCatRole || "unknown role"}
-- Nearby cats: ${(input.nearbyCats || []).join(", ") || "None listed"}
-- Encounter mode: ${input.encounterMode || "manual_talk"}
+${isRealChat ? "" : `- Nearby cats: ${(input.nearbyCats || []).join(", ") || "None listed"}\n`}- Encounter mode: ${input.encounterMode || "manual_talk"}
 - Mood: ${input.mood}
 - Travel style: ${input.travelStyle}
 - Action: ${input.userAction}
@@ -171,15 +185,14 @@ export function buildArchivePrompt(input: JourneyPromptInput) {
 Scout Cat:
 ${JSON.stringify(input.scout, null, 2)}
 
-Companion Cat:
-${JSON.stringify(input.companion, null, 2)}
+${dialogueSource}
 
 Oracle Cat:
 ${JSON.stringify(input.oracle, null, 2)}
 
 ${describeActivePlot(input.activePlot)}
 ${describeConversation(input.conversation)}
-Return JSON with keys:
+${focusConstraint}Return JSON with keys:
 - chapterTitle
 - summary
 - story

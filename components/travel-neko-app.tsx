@@ -250,8 +250,23 @@ const archivePhases = [
   }
 ] as const;
 
-function getRequestPhases(mode: "manual_talk" | "auto_explore") {
-  return mode === "auto_explore" ? autoPhases : archivePhases;
+// Image generation is the slow tail of a journey, so surface it as its own
+// phase (only when a postcard will actually be drawn) instead of freezing on
+// "Archivist Cat" while the picture renders.
+const painterPhase = {
+  id: "painter",
+  label: "Painter Cat",
+  detail: "画师猫正在画明信片配图，出图可能要等一会儿"
+} as const;
+
+type RequestPhase = { id: string; label: string; detail: string };
+
+function getRequestPhases(
+  mode: "manual_talk" | "auto_explore",
+  drawsPostcard = false
+): RequestPhase[] {
+  const base = mode === "auto_explore" ? autoPhases : archivePhases;
+  return drawsPostcard ? [...base, painterPhase] : [...base];
 }
 
 const defaultNpc = npcCats[0];
@@ -564,6 +579,7 @@ export function TravelNekoApp({
   const [isResetting, setIsResetting] = useState(false);
   const [isWalking, setIsWalking] = useState(false);
   const [isAutoExploring, setIsAutoExploring] = useState(false);
+  const [runDrawsPostcard, setRunDrawsPostcard] = useState(false);
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [showCustomize, setShowCustomize] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -678,7 +694,10 @@ export function TravelNekoApp({
   const talkDistance =
     getDistance(playerPosition, getMeetPoint(activeNpc)) <= 8 ||
     getDistance(playerPosition, { x: activeNpc.x, y: activeNpc.y }) <= 12;
-  const activePhases = isAutoExploring ? autoPhases : archivePhases;
+  const activePhases = getRequestPhases(
+    isAutoExploring ? "auto_explore" : "manual_talk",
+    runDrawsPostcard
+  );
   const currentPhase =
     requestStage >= 0
       ? activePhases[Math.min(requestStage, activePhases.length - 1)]
@@ -837,6 +856,27 @@ export function TravelNekoApp({
     };
   }, [isSubmitting, view, movePlayerBy]);
 
+  // Walking up to a cat makes it the conversation target automatically. We only
+  // retarget before a conversation starts, so wandering mid-chat never discards
+  // an ongoing exchange (and auto-explore drives the target on its own).
+  useEffect(() => {
+    if (view !== "world" || isSubmitting || isAutoExploring || chatMessages.length > 0) {
+      return;
+    }
+
+    const nearest = npcCats.reduce(
+      (best, cat) => {
+        const distance = getDistance(playerPosition, { x: cat.x, y: cat.y });
+        return distance < best.distance ? { cat, distance } : best;
+      },
+      { cat: npcCats[0], distance: Infinity }
+    ).cat;
+
+    if (nearest.id !== selectedNpcId) {
+      setSelectedNpcId(nearest.id);
+    }
+  }, [playerPosition, view, isSubmitting, isAutoExploring, chatMessages.length, selectedNpcId]);
+
   function hydrateFormFromNpc(npc: NpcCat) {
     setForm((current) => ({
       ...current,
@@ -892,12 +932,12 @@ export function TravelNekoApp({
     npc: NpcCat,
     mode: "manual_talk" | "auto_explore",
     areaName: string,
-    ticker: { catName: string }
+    ticker: { catName: string; drawsPostcard: boolean }
   ) {
     clearStageTicker();
 
-    const phases = getRequestPhases(mode);
-    const phaseNotes =
+    const phases = getRequestPhases(mode, ticker.drawsPostcard);
+    const baseNotes =
       mode === "auto_explore"
         ? [
             `${ticker.catName} 正朝 ${npc.landmark} 接近。`,
@@ -914,6 +954,9 @@ export function TravelNekoApp({
             "Oracle Cat 正在把隐藏线索压进这段故事。",
             "Archivist Cat 正在把这段对话写成一页手账。"
           ];
+    const phaseNotes = ticker.drawsPostcard
+      ? [...baseNotes, "画师猫正在画明信片配图，出图可能要等一会儿…"]
+      : baseNotes;
 
     setRequestStage(0);
     pushStatus(phaseNotes[0]);
@@ -945,6 +988,9 @@ export function TravelNekoApp({
     const sideCats = getNearbyCats(npc);
 
     const catName = options.ticker?.catName ?? form.catName;
+    // A postcard image only renders when both the feature is enabled and the
+    // player asked for one; that's the slow step worth surfacing as a phase.
+    const drawsPostcard = config.imageGenerationEnabled && form.generatePostcard;
 
     if (options.hydrateBeforeWalk === true) {
       hydrateFormFromNpc(npc);
@@ -954,7 +1000,8 @@ export function TravelNekoApp({
     setError("");
     setIsSubmitting(true);
     setIsAutoExploring(options.mode === "auto_explore");
-    startRequestTicker(npc, options.mode, zone.name, { catName });
+    setRunDrawsPostcard(drawsPostcard);
+    startRequestTicker(npc, options.mode, zone.name, { catName, drawsPostcard });
 
     if (!talkDistance || options.mode === "auto_explore") {
       beginWalk(
@@ -1006,7 +1053,7 @@ export function TravelNekoApp({
       }
 
       clearStageTicker();
-      setRequestStage(getRequestPhases(options.mode).length - 1);
+      setRequestStage(getRequestPhases(options.mode, drawsPostcard).length - 1);
       setRecords((current) =>
         [json.record, ...current.filter((record) => record.id !== json.record.id)].slice(0, 20)
       );
@@ -1485,7 +1532,7 @@ export function TravelNekoApp({
                   可选旅行照片
                   <input accept="image/*" onChange={handleTravelImageChange} type="file" />
                   <span className="panel-tip">
-                    上传后会交给视觉模型提取氛围与线索；过大文件会被拒绝。
+                    带上一张旅途照片，猫咪们会从画面里读出氛围，写进这段故事里。
                   </span>
                   {imageDataUrl ? (
                     <button
