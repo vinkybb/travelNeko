@@ -470,6 +470,27 @@ function CatSprite({
   );
 }
 
+function PostcardCard({ url, title }: { url: string; title?: string }) {
+  const [failed, setFailed] = useState(false);
+
+  return (
+    <figure className="postcard-card">
+      {failed ? (
+        <div className="postcard-fallback">
+          <span>明信片图片加载失败</span>
+          <p>配图链接可能已过期（生成后约 24 小时有效）。</p>
+        </div>
+      ) : (
+        // Remote provider host isn't allow-listed for next/image, and the URL
+        // is a short-lived signed link, so a plain <img> with a fallback fits best.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img alt={title ? `明信片：${title}` : "画师猫的明信片"} onError={() => setFailed(true)} src={url} />
+      )}
+      {title ? <figcaption>✦ 画师猫的明信片 · {title}</figcaption> : null}
+    </figure>
+  );
+}
+
 export function TravelNekoApp({
   initialRecords,
   config
@@ -1104,8 +1125,8 @@ export function TravelNekoApp({
             <p className="eyebrow">TravelNeko / Stardew-like Opening</p>
             <h1>从一块旅行地图开始，慢慢走进一座会说话的猫咪小镇。</h1>
             <p className="title-copy">
-              进入游戏后，你可以手动移动主角猫，也可以点一下让 AI 自动探索。和某只猫对话时，其他
-              agent 猫会偶尔插话，最后由 Archivist Cat 把它们写进故事手账。
+              进入游戏后，你可以手动移动主角猫，也可以点一下让 AI 自动探索。和某只猫多轮聊天，聊到对味
+              可能触发一段剧情；把这段相遇写进手账时，旁边的猫也会来凑几句，凑成一段小故事。
             </p>
 
             <div className="title-points">
@@ -1119,7 +1140,7 @@ export function TravelNekoApp({
               </div>
               <div>
                 <strong>3. 然后聊天</strong>
-                <span>目标猫先开口，旁边的猫偶尔插话，最后整段故事被自动归档。</span>
+                <span>和目标猫一对一多轮聊天，聊出剧情后写进手账；归档时旁边的猫也会来凑几句热闹。</span>
               </div>
             </div>
 
@@ -1153,7 +1174,7 @@ export function TravelNekoApp({
 
             <div className="title-models">
               <span>模型：{config.model}</span>
-              <span>玩法：手动移动 + 自动探索 + 多猫插话</span>
+              <span>玩法：多轮聊天 + 剧情触发 + AI 自动探索</span>
             </div>
           </article>
 
@@ -1473,6 +1494,13 @@ export function TravelNekoApp({
 
                 <p className="story-lede">{activeRecord.archive.summary}</p>
 
+                {activeRecord.postcardImageUrl ? (
+                  <PostcardCard
+                    title={activeRecord.painter?.postcardTitle}
+                    url={activeRecord.postcardImageUrl}
+                  />
+                ) : null}
+
                 <details className="reveal">
                   <summary>展开这段相遇的对话与故事</summary>
                   <div className="reveal-body">
@@ -1510,34 +1538,65 @@ export function TravelNekoApp({
                     <div className="transcript-grid">
                       <section className="dialogue-card">
                         <p className="eyebrow">Conversation</p>
-                        <div className="speech-stack">
-                          <div className="speech is-player">
-                            <strong>{activeRecord.input.catName}</strong>
-                            <p>{activeRecord.input.userAction}</p>
-                          </div>
-                          <div className="speech is-focus">
-                            <strong>{activeRecord.input.focusCatName || "目标猫"}</strong>
-                            <p>{activeRecord.companion.openingLine}</p>
-                          </div>
-                          {activeRecord.companion.banter.map((line, index) => {
-                            const parsed = parseSpeakerLine(line);
-                            const isFocus = parsed.speaker.includes(activeRecordFocusName);
+                        {activeRecord.input.conversation ? (
+                          <>
+                            <p className="dialogue-note">你和它的真实对话</p>
+                            <div className="speech-stack">
+                              {activeRecord.input.conversation
+                                .split("\n")
+                                .map((line) => line.trim())
+                                .filter(Boolean)
+                                .map((line, index) => {
+                                  const parsed = parseSpeakerLine(line);
+                                  const isPlayer = parsed.speaker.includes(
+                                    activeRecord.input.catName
+                                  );
 
-                            return (
-                              <div
-                                className={`speech ${isFocus ? "is-focus" : "is-cameo"}`}
-                                key={`${index}-${line}`}
-                              >
-                                <strong>{parsed.speaker}</strong>
-                                <p>{parsed.text}</p>
+                                  return (
+                                    <div
+                                      className={`speech ${isPlayer ? "is-player" : "is-focus"}`}
+                                      key={`${index}-${line}`}
+                                    >
+                                      <strong>{parsed.speaker}</strong>
+                                      <p>{parsed.text}</p>
+                                    </div>
+                                  );
+                                })}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <p className="dialogue-note">猫咪们事后转述的一幕</p>
+                            <div className="speech-stack">
+                              <div className="speech is-player">
+                                <strong>{activeRecord.input.catName}</strong>
+                                <p>{activeRecord.input.userAction}</p>
                               </div>
-                            );
-                          })}
-                          <div className="speech is-invite">
-                            <strong>下一步邀请</strong>
-                            <p>{activeRecord.companion.invitation}</p>
-                          </div>
-                        </div>
+                              <div className="speech is-focus">
+                                <strong>{activeRecord.input.focusCatName || "目标猫"}</strong>
+                                <p>{activeRecord.companion.openingLine}</p>
+                              </div>
+                              {activeRecord.companion.banter.map((line, index) => {
+                                const parsed = parseSpeakerLine(line);
+                                const isFocus = parsed.speaker.includes(activeRecordFocusName);
+
+                                return (
+                                  <div
+                                    className={`speech ${isFocus ? "is-focus" : "is-cameo"}`}
+                                    key={`${index}-${line}`}
+                                  >
+                                    <strong>{parsed.speaker}</strong>
+                                    <p>{parsed.text}</p>
+                                  </div>
+                                );
+                              })}
+                              <div className="speech is-invite">
+                                <strong>下一步邀请</strong>
+                                <p>{activeRecord.companion.invitation}</p>
+                              </div>
+                            </div>
+                          </>
+                        )}
                       </section>
 
                       <section className="story-card">
@@ -1580,7 +1639,7 @@ export function TravelNekoApp({
               <div className="empty-state">
                 <p className="eyebrow">还没有故事</p>
                 <h2>先在地图里走一走，找一只猫说话。</h2>
-                <p>靠近某只猫，或点「让 AI 自动探索」，第一段故事就会自动生成。</p>
+                <p>和某只猫聊几句再写进手账，或点「让 AI 自动探索」，第一段故事就会出现。</p>
               </div>
             )}
           </article>

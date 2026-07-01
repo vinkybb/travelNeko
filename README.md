@@ -7,8 +7,9 @@ TravelNeko 是一个带有多 Agent 叙事能力的旅行猫咪小游戏原型�
 - 先进入一个氛围化的开始界面
 - 再进入可探索的地图世界
 - 主角猫可以手动移动，也可以点击让 AI 自动探索
-- 与某只猫互动时，其他猫咪 Agent 会偶尔插话
-- 每次相遇都会自动沉淀成一篇旅行手账记录
+- 与某只猫一对一多轮聊天，聊着聊着可能触发一段预设剧情
+- 觉得这段相遇值得纪念，就把它写进旅行手账
+- 之后可以随时回看这段对话，以及猫咪们的幕后花絮
 
 ## Why This Project
 
@@ -19,10 +20,12 @@ TravelNeko 想验证一件事：
 在这个项目里，多 Agent 不只是隐藏在 API 后面做文本拼接，而是明确承担不同游戏角色：
 
 - `Scout Cat` 负责布置遭遇、天气、氛围和场景挑战
-- `Companion Cat` 负责组织对话，让目标猫先开口
+- `Companion Cat` 负责旁边猫咪的插话与花絮
 - `Oracle Cat` 负责把暗线、伏笔和隐藏线索压进剧情
 - `Archivist Cat` 负责把相遇整理成一篇完整的旅行手账
-- `Painter Cat` 可选生成明信片草图 prompt
+- `Painter Cat` 可选生成明信片图片
+- `Plot Director` 每轮判断当前这句话是否该触发某段预设剧情
+- `Chat Reply Cat` 在多轮聊天里以目标猫的口吻实时回应玩家
 
 ## Screenshot Gallery
 
@@ -40,19 +43,19 @@ TravelNeko 想验证一件事：
 
 ### 3. NPC Dialogue
 
-与目标猫对话时，目标猫优先响应，附近其他猫咪会偶尔插话，形成更像“现场发生”的交流感。
+与目标猫是一对一的多轮聊天，目标猫会持续回应你；聊到对味时会亮起“把这段相遇写进手账”的提示。
 
 ![TravelNeko NPC dialogue](./docs/screenshots/npc-dialogue-screen.png)
 
 ### 4. AI Auto Explore Kiosk
 
-右侧的信息台负责展示多 Agent 处理过程，也支持一键触发 AI 自动探索。
+点「让 AI 自动探索」后，动作区会实时显示多 Agent 的处理进度。
 
 ![TravelNeko AI auto explore kiosk](./docs/screenshots/ai-auto-explore-kiosk-screen.png)
 
 ### 5. Archive / Journal View
 
-一次相遇结束后，故事摘要、正文、对话、Agent 注释和纪念物都会进入手账档案。
+把一段相遇写进手账后，故事摘要、明信片配图、正文、对话与各 Agent 注释都会归档。
 
 ![TravelNeko archive journal](./docs/screenshots/archive-journal-screen.png)
 
@@ -77,26 +80,33 @@ TravelNeko 想验证一件事：
 - 手动移动：`WASD` / 方向键
 - 自动移动：点击地图空地、区域按钮或 NPC
 
-### 3. Trigger An Encounter
+### 3. Talk / Trigger An Encounter
 
 玩家可以：
 
-- 主动靠近某只猫，再发起对话
-- 直接使用信息台触发一次手动交流
-- 点击 `AI 自动探索`，让系统自主决定下一站和相遇对象
+- 在 `Live Chat` 面板与目标猫多轮聊天；聊到贴合某段预设剧情时，剧情导演会触发它
+- 聊完点「把这段相遇写进手账」，让多 Agent 流水线把这段对话整理成一章故事
+- 点击 `AI 自动探索`，让系统自主决定下一站和相遇对象，并直接生成一段相遇
 
 ### 4. Multi-Agent Conversation
 
-一次遭遇会进入可见的多 Agent 流程：
+有两条会用到多 Agent 的路径：
+
+**A. 多轮聊天（Live Chat）** —— 每发一句：
+
+1. `Plot Director` 判断这一刻是否触发/推进某段预设剧情
+2. `Chat Reply Cat` 以目标猫的口吻实时回应（触发剧情时按剧情走向发挥）
+
+**B. 写进手账 / AI 自动探索** —— 跑完整流水线，把相遇沉淀成一章故事：
 
 1. `Pathfinding`
 2. `Info Kiosk`
 3. `Scout Cat`
 4. `Companion Cat`
 5. `Oracle Cat`
-6. `Archivist Cat`
+6. `Archivist Cat`（触发了剧情时会以该剧情为锚）
 
-这个阶段不是隐藏的内部黑箱，而是通过右侧信息台持续反馈给玩家。
+流水线阶段不是隐藏黑箱，而是通过右侧信息台持续反馈给玩家。
 
 ### 5. Persist The Story
 
@@ -105,12 +115,16 @@ TravelNeko 想验证一件事：
 - 玩家输入
 - 地图区域与目标猫
 - 场景信息
-- 对话片段
+- 对话记录
 - 隐藏线索
 - 故事摘要
 - 手账正文
 - 纪念物
 - Agent 注释卡片
+- 触发的剧情（如有）
+- 明信片图片（启用图片生成时）
+
+此外，flag / 完成剧情 / 到访次数 / 关系值会单独持久化到 `data/game-state.json`，实现跨会话记忆与链式剧情。
 
 ## Current Feature Set
 
@@ -121,8 +135,9 @@ TravelNeko 想验证一件事：
 - SVG 猫咪角色和区域化地图
 - 手动移动与自动寻路
 - AI 自动探索模式
-- 对话触发与实时信息台
-- 对话后故事自动归档
+- 多轮 Live Chat 聊天，聊天中可触发预设剧情
+- 聊完手动「把这段相遇写进手账」（AI 自动探索仍自动归档）
+- 实时信息台展示多 Agent 处理过程
 
 ### Narrative / Agent System
 
@@ -130,17 +145,22 @@ TravelNeko 想验证一件事：
 - 目标猫优先发言
 - 邻近猫咪偶尔插话
 - 故事中包含场景推进、互动、暗线、总结、纪念物
-- 明信片草图 prompt 生成能力
+- 预设剧情库 + 剧情导演：规则预筛 + LLM 判定，支持链式剧情
+- 关系值 / flag / 完成剧情的持久化（跨会话记忆）
+- 明信片真实图片生成（可选开启）
 
 ### Model Integration
 
 - OpenAI 兼容接口接入（默认指向 OpenAI 官方 API，可通过环境变量改为任意兼容端点）
 - 支持配置文本模型、视觉模型和图片模型
 - 地图页「信息台」可选上传旅行照片（data URL 发往 `/api/journey` 的 `imageDataUrl`），由视觉模型提取氛围与线索
+- 功能开关：`ENABLE_IMAGE_GENERATION`（明信片出图）、`ENABLE_PLOT_DIRECTOR`（剧情导演；关掉则退回按优先级的确定性规则触发）
 
 ### Persistence
 
-- 旅行记录保存在本地 `data/journals.json`
+- 旅行手账保存在 `data/journals.json`
+- 游戏状态（flag / 完成剧情 / 到访次数 / 关系值）保存在 `data/game-state.json`
+- 多轮聊天会话保存在 `data/chat-sessions.json`
 - 首页和地图页会自动读取已有档案
 
 ### Testing
@@ -162,8 +182,11 @@ TravelNeko 想验证一件事：
 ```text
 app/                      Next.js app router 页面与 API
 components/               前端交互组件
-lib/                      配置、多 Agent 编排、模型接入、存储
+lib/                      配置、多 Agent 编排、剧情解析、模型接入、存储等
+content/plots/            预设剧情定义
 data/journals.json        本地故事档案
+data/game-state.json      游戏状态
+data/chat-sessions.json   多轮聊天会话
 docs/screenshots/         README 截图素材
 docs/plans/               设计文档
 scripts/smoke-journey.ts  真实接口 smoke test
@@ -302,7 +325,7 @@ TravelNeko 这版更关注“可感知性”：
 - 玩家先进入一个世界，而不是一段输入框
 - 地图、角色、移动和区域是可见的
 - 多 Agent 流程通过信息台可视化
-- 对话不是孤立的，旁边的猫咪会参与
+- 旁边的猫咪也会在手账的幕后花絮里出现，让相遇更有现场感
 - 每次结果都会沉淀成手账，而不是只停留在聊天记录里
 
 ## Roadmap
@@ -314,9 +337,9 @@ TravelNeko 这版更关注“可感知性”：
 - 靠近 NPC 才能触发对话
 - 实时头顶对话气泡，而不只是事后手账展示
 - 更完整的 AI 自动漫游逻辑
-- 猫咪关系值 / 好感度 / 常驻记忆
+- 更丰富的剧情库与多环链式剧情
+- 明信片图片本地持久化
 - 多地图切换与旅行路线系统
-- 真正的明信片图片生成链路
 
 ## Status
 
