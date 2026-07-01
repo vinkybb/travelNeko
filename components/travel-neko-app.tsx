@@ -185,7 +185,9 @@ const npcCats: NpcCat[] = [
   }
 ];
 
-const requestPhases = [
+// AI auto-explore actually walks to a cat and improvises a brand-new encounter,
+// so its progress reads as an exploration pipeline.
+const autoPhases = [
   {
     id: "move",
     label: "Pathfinding",
@@ -217,6 +219,40 @@ const requestPhases = [
     detail: "把相遇写成故事并留存"
   }
 ] as const;
+
+// Archiving a real chat has no walking or new encounter — it turns the
+// conversation you already had into a story chapter, so the copy differs.
+const archivePhases = [
+  {
+    id: "kiosk",
+    label: "Info Kiosk",
+    detail: "信息台整理这段对话的语气与线索"
+  },
+  {
+    id: "scout",
+    label: "Scout Cat",
+    detail: "还原你们相遇时的场景与氛围"
+  },
+  {
+    id: "companion",
+    label: "Companion Cat",
+    detail: "附近的猫补上几句幕后花絮"
+  },
+  {
+    id: "oracle",
+    label: "Oracle Cat",
+    detail: "悄悄压入暗线与伏笔"
+  },
+  {
+    id: "archive",
+    label: "Archivist Cat",
+    detail: "把这段对话写成一页手账"
+  }
+] as const;
+
+function getRequestPhases(mode: "manual_talk" | "auto_explore") {
+  return mode === "auto_explore" ? autoPhases : archivePhases;
+}
 
 const defaultNpc = npcCats[0];
 
@@ -628,9 +664,10 @@ export function TravelNekoApp({
   const talkDistance =
     getDistance(playerPosition, getMeetPoint(activeNpc)) <= 8 ||
     getDistance(playerPosition, { x: activeNpc.x, y: activeNpc.y }) <= 12;
+  const activePhases = isAutoExploring ? autoPhases : archivePhases;
   const currentPhase =
     requestStage >= 0
-      ? requestPhases[Math.min(requestStage, requestPhases.length - 1)]
+      ? activePhases[Math.min(requestStage, activePhases.length - 1)]
       : null;
   const latestStatus = statusFeed[0] ?? null;
 
@@ -841,31 +878,39 @@ export function TravelNekoApp({
     npc: NpcCat,
     mode: "manual_talk" | "auto_explore",
     areaName: string,
-    ticker: { catName: string; userActionPreview: string }
+    ticker: { catName: string }
   ) {
     clearStageTicker();
 
-    const phaseNotes = [
-      `${ticker.catName} 正朝 ${npc.landmark} 接近。`,
+    const phases = getRequestPhases(mode);
+    const phaseNotes =
       mode === "auto_explore"
-        ? `信息台已切换为 AI 探索模式，将在 ${areaName} 自主寻找新相遇。`
-        : `信息台已整理你的对话意图：“${ticker.userActionPreview}”`,
-      `Scout Cat 正在为 ${areaName} 布置遭遇场景。`,
-      `${npc.alias} 正准备先开口，附近的猫也可能插话。`,
-      "Oracle Cat 正在把隐藏线索压进这一段对话。",
-      "Archivist Cat 正在装订新的手账页。"
-    ];
+        ? [
+            `${ticker.catName} 正朝 ${npc.landmark} 接近。`,
+            `信息台已切换为 AI 探索模式，将在 ${areaName} 自主寻找新相遇。`,
+            `Scout Cat 正在为 ${areaName} 布置遭遇场景。`,
+            `${npc.alias} 正准备先开口，附近的猫也可能插话。`,
+            "Oracle Cat 正在把隐藏线索压进这一段对话。",
+            "Archivist Cat 正在装订新的手账页。"
+          ]
+        : [
+            `信息台正在整理你和 ${npc.alias} 的这段对话。`,
+            `Scout Cat 正在还原你们相遇时的场景。`,
+            "附近的猫正在补上几句幕后花絮。",
+            "Oracle Cat 正在把隐藏线索压进这段故事。",
+            "Archivist Cat 正在把这段对话写成一页手账。"
+          ];
 
     setRequestStage(0);
     pushStatus(phaseNotes[0]);
 
     let stageIndex = 0;
     stageTickerRef.current = setInterval(() => {
-      stageIndex = Math.min(stageIndex + 1, requestPhases.length - 1);
+      stageIndex = Math.min(stageIndex + 1, phases.length - 1);
       setRequestStage(stageIndex);
       pushStatus(phaseNotes[stageIndex]);
 
-      if (stageIndex === requestPhases.length - 1) {
+      if (stageIndex === phases.length - 1) {
         clearStageTicker();
       }
     }, 1100);
@@ -879,7 +924,7 @@ export function TravelNekoApp({
     /** Real chat transcript to archive into a story chapter. */
     conversation?: string;
     /** Avoid stale form in status ticker after setState (e.g. auto explore). */
-    ticker?: { catName: string; userActionPreview: string };
+    ticker?: { catName: string };
   }) {
     const npc = options.npc;
     const zone = getZoneById(npc.zoneId);
@@ -888,9 +933,6 @@ export function TravelNekoApp({
     );
 
     const catName = options.ticker?.catName ?? form.catName;
-    const userActionPreview =
-      options.ticker?.userActionPreview ??
-      (options.mode === "manual_talk" ? form.userAction : options.actionText);
 
     if (options.hydrateBeforeWalk === true) {
       hydrateFormFromNpc(npc);
@@ -900,10 +942,7 @@ export function TravelNekoApp({
     setError("");
     setIsSubmitting(true);
     setIsAutoExploring(options.mode === "auto_explore");
-    startRequestTicker(npc, options.mode, zone.name, {
-      catName,
-      userActionPreview
-    });
+    startRequestTicker(npc, options.mode, zone.name, { catName });
 
     if (!talkDistance || options.mode === "auto_explore") {
       beginWalk(
@@ -955,7 +994,7 @@ export function TravelNekoApp({
       }
 
       clearStageTicker();
-      setRequestStage(requestPhases.length - 1);
+      setRequestStage(getRequestPhases(options.mode).length - 1);
       setRecords((current) =>
         [json.record, ...current.filter((record) => record.id !== json.record.id)].slice(0, 20)
       );
@@ -1043,7 +1082,7 @@ export function TravelNekoApp({
       mode: "auto_explore",
       actionText: `让旅程自己流动，沿着 ${zone.subtitle} 自由探索，看看 ${nextNpc.alias} 会先说什么，也欢迎其他猫咪偶尔插话。`,
       hydrateBeforeWalk: false,
-      ticker: { catName, userActionPreview: nextUserAction }
+      ticker: { catName }
     });
   }
 
@@ -1351,13 +1390,20 @@ export function TravelNekoApp({
                 >
                   {isSubmitting && isAutoExploring ? "AI 正在探索..." : "让 AI 自动探索"}
                 </button>
-                <label className="checkbox-row dock-checkbox">
+                <label
+                  className={`checkbox-row dock-checkbox${
+                    config.imageGenerationEnabled ? "" : " is-disabled"
+                  }`}
+                >
                   <input
-                    checked={form.generatePostcard}
+                    checked={config.imageGenerationEnabled && form.generatePostcard}
+                    disabled={!config.imageGenerationEnabled}
                     onChange={(event) => updateField("generatePostcard", event.target.checked)}
                     type="checkbox"
                   />
-                  归档时顺手让画师猫画一张明信片
+                  {config.imageGenerationEnabled
+                    ? "归档时顺手让画师猫画一张明信片"
+                    : "明信片配图已关闭"}
                 </label>
                 <button
                   aria-expanded={showCustomize}

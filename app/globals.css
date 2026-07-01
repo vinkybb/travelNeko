@@ -1076,6 +1076,15 @@ img {
   margin-top: 2px;
 }
 
+.dock-checkbox.is-disabled {
+  opacity: 0.68;
+  cursor: not-allowed;
+}
+
+.dock-checkbox.is-disabled input {
+  cursor: not-allowed;
+}
+
 /* Nearby-cats hint sits under the action dock as an archiving cue */
 .dock-nearby {
   margin-top: 12px;
