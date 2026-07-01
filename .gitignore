@@ -8,4 +8,4 @@ dist
 .env.local
 data/*.tmp
 data/smoke-*.json
-
+data/journals.json

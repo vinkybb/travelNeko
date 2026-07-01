@@ -21,6 +21,11 @@ export function getAppConfig() {
     apiKey: process.env.LLM_API_KEY || "",
     journalPath:
       process.env.JOURNAL_PATH || path.join(cwd, "data", "journals.json"),
+    gameStatePath:
+      process.env.GAME_STATE_PATH || path.join(cwd, "data", "game-state.json"),
+    plotsDir: process.env.PLOTS_DIR || path.join(cwd, "content", "plots"),
+    /** Director agent judges plot triggers; set false to fall back to rule-based picks. */
+    plotDirectorEnabled: process.env.ENABLE_PLOT_DIRECTOR !== "false",
     imageGenerationEnabled: process.env.ENABLE_IMAGE_GENERATION === "true",
     requestTimeoutMs
   };

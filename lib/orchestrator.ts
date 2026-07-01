@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 
-import { getPublicConfig } from "./config";
+import { getAppConfig, getPublicConfig } from "./config";
 import { JsonJournalStore } from "./journal-store";
+import { JsonGameStateStore, type GameStateStore } from "./game-state-store";
+import { loadPlotCatalog } from "./plot-library";
+import { resolvePlot } from "./plot-resolver";
 import {
   buildArchivePrompt,
   buildCompanionPrompt,
@@ -28,12 +31,19 @@ import type {
   JourneyResponse,
   OracleClue,
   PainterDraft,
-  ScoutScene
+  PlotBeat,
+  ScoutScene,
+  TriggeredPlot
 } from "./types";
 
 type RunJourneyDependencies = {
   client?: JourneyLLMClient;
   store?: JsonJournalStore;
+  stateStore?: GameStateStore;
+  /** Injectable plot catalog; defaults to loading from the plots directory. */
+  catalog?: PlotBeat[];
+  /** Override the director toggle (defaults to app config). */
+  directorEnabled?: boolean;
 };
 
 function summarizeHistory(records: JourneyRecord[]) {
@@ -137,14 +147,40 @@ export async function runJourney(
 ): Promise<JourneyResponse> {
   const client = dependencies.client || new OpenAIJourneyClient();
   const store = dependencies.store || new JsonJournalStore();
+  const stateStore = dependencies.stateStore || new JsonGameStateStore();
+  const config = getAppConfig();
   const history = await store.listRecords();
   const historySummary = summarizeHistory(history);
   const imageInsight = await maybeAnalyseImage(client, input.imageDataUrl);
 
+  const catalog = dependencies.catalog ?? (await loadPlotCatalog());
+  const gameState = await stateStore.getState();
+  const resolution = await resolvePlot({
+    catalog,
+    state: gameState,
+    context: {
+      zoneId: input.zoneId,
+      npcId: input.focusNpcId,
+      encounterMode: input.encounterMode,
+      catName: input.catName,
+      mood: input.mood,
+      travelStyle: input.travelStyle,
+      userAction: input.userAction,
+      currentArea: input.currentArea,
+      focusCatName: input.focusCatName,
+      focusCatRole: input.focusCatRole,
+      historySummary
+    },
+    client,
+    directorEnabled: dependencies.directorEnabled ?? config.plotDirectorEnabled
+  });
+  const activePlot = resolution.plot;
+
   const scoutPrompt = buildScoutPrompt({
     ...input,
     historySummary,
-    imageInsight
+    imageInsight,
+    activePlot
   });
 
   const scout = await client.completeJson<ScoutScene>({
@@ -157,12 +193,14 @@ export async function runJourney(
     ...input,
     historySummary,
     imageInsight,
+    activePlot,
     scout
   });
   const oraclePrompt = buildOraclePrompt({
     ...input,
     historySummary,
     imageInsight,
+    activePlot,
     scout
   });
 
@@ -183,6 +221,7 @@ export async function runJourney(
     ...input,
     historySummary,
     imageInsight,
+    activePlot,
     scout,
     companion,
     oracle
@@ -215,6 +254,10 @@ export async function runJourney(
     });
   }
 
+  const triggeredPlot: TriggeredPlot | null = activePlot
+    ? { id: activePlot.id, title: activePlot.title, reason: resolution.reason }
+    : null;
+
   const record: JourneyRecord = {
     id: randomUUID(),
     createdAt: new Date().toISOString(),
@@ -233,10 +276,12 @@ export async function runJourney(
       archive,
       painter,
       imageInsight
-    })
+    }),
+    triggeredPlot
   };
 
   await store.saveRecord(record);
+  await stateStore.commitJourney({ zoneId: input.zoneId, plot: activePlot });
 
   return {
     record,

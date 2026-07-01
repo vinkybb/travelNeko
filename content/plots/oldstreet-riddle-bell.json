@@ -1,0 +1,22 @@
+{
+  "id": "oldstreet_riddle_bell",
+  "title": "旧街的谜语铃",
+  "synopsis": "神谕猫说那封旧信的收信人常在雨巷出没，只有解开信箱亭上的谜语铃才能确认。",
+  "priority": 30,
+  "once": true,
+  "preconditions": {
+    "zoneId": "old-street",
+    "npcId": "oracle-cat",
+    "requiredFlags": ["harbor_lost_letter_done"],
+    "forbiddenFlags": ["oldstreet_riddle_bell_done"]
+  },
+  "beats": [
+    "神谕猫认出旅行猫手里那封旧信，眼神一沉。",
+    "它指向雨巷信箱亭顶端一枚不会自己响的铜铃。",
+    "只有答对关于'谁在等信'的谜语，铃声才会指出收信人的方向。"
+  ],
+  "effects": {
+    "setFlags": ["oldstreet_riddle_bell_done"],
+    "relationship": { "oracle-cat": 1 }
+  }
+}

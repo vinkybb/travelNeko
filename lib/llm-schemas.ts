@@ -44,3 +44,12 @@ export const painterDraftSchema = z.object({
   visualPrompt: z.string(),
   styleNotes: z.array(z.string())
 });
+
+/**
+ * Director agent output. `selectedPlotId` is null when the director judges that
+ * no candidate fits the current moment, keeping the encounter free-form.
+ */
+export const plotDirectorSchema = z.object({
+  selectedPlotId: z.string().nullable(),
+  reason: z.string()
+});

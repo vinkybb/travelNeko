@@ -1,0 +1,21 @@
+{
+  "id": "harbor_lost_letter",
+  "title": "港口的旧信",
+  "synopsis": "伴猫在鱼灯柱下捡到一封没能寄出的旧信，想请旅行猫帮忙找到收信人。",
+  "priority": 20,
+  "once": true,
+  "preconditions": {
+    "zoneId": "harbor",
+    "npcId": "companion-cat",
+    "forbiddenFlags": ["harbor_lost_letter_done"]
+  },
+  "beats": [
+    "伴猫从鱼灯柱缝隙里抽出一封被海风泡皱的旧信。",
+    "信封上的名字被盐渍晕开，只剩半个字还能认。",
+    "伴猫邀请旅行猫一起沿港口打听收信人的下落。"
+  ],
+  "effects": {
+    "setFlags": ["harbor_lost_letter_done"],
+    "relationship": { "companion-cat": 1 }
+  }
+}

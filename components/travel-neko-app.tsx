@@ -456,9 +456,11 @@ export function TravelNekoApp({
   ]);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const [isWalking, setIsWalking] = useState(false);
   const [isAutoExploring, setIsAutoExploring] = useState(false);
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
+  const [showCustomize, setShowCustomize] = useState(false);
   const walkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stageTickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const didApplyQueryDemoRef = useRef(false);
@@ -560,7 +562,6 @@ export function TravelNekoApp({
   }, []);
 
   const activeNpc = getNpcById(selectedNpcId);
-  const activeZone = getZoneById(activeNpc.zoneId);
   const currentZone = findClosestZone(playerPosition);
   const activeRecord =
     records.find((record) => record.id === selectedId) ?? records[0] ?? null;
@@ -574,6 +575,11 @@ export function TravelNekoApp({
   const talkButtonLabel = talkDistance
     ? `和 ${activeNpc.alias} 聊天`
     : `走过去并和 ${activeNpc.alias} 聊天`;
+  const currentPhase =
+    requestStage >= 0
+      ? requestPhases[Math.min(requestStage, requestPhases.length - 1)]
+      : null;
+  const latestStatus = statusFeed[0] ?? null;
 
   function updateField<Key extends keyof typeof initialForm>(
     key: Key,
@@ -859,12 +865,14 @@ export function TravelNekoApp({
         catName: form.catName,
         destination: zone.name,
         currentArea: zone.name,
+        zoneId: zone.id,
         mood: options.mode === "auto_explore" ? npc.mood : form.mood,
         travelStyle:
           options.mode === "auto_explore" ? npc.travelStyle : form.travelStyle,
         userAction: options.actionText,
         focusCatName: npc.alias,
         focusCatRole: npc.role,
+        focusNpcId: npc.id,
         nearbyCats: sideCats.map((cat) => `${cat.alias}(${cat.role})`),
         encounterMode: options.mode,
         generatePostcard: form.generatePostcard
@@ -981,6 +989,45 @@ export function TravelNekoApp({
     setPlayerPosition(getMeetPoint(relatedNpc));
   }
 
+  async function handleResetHistory() {
+    if (isSubmitting || isResetting || !records.length) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "确定要清空所有故事手账吗？此操作不可恢复，本地存档会被永久删除。"
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setError("");
+    setIsResetting(true);
+
+    try {
+      const response = await fetch("/api/journals", { method: "DELETE" });
+
+      if (!response.ok) {
+        const json = (await response.json()) as { error?: string };
+        throw new Error(json.error || "Failed to reset journal history.");
+      }
+
+      setRecords([]);
+      setSelectedId(null);
+      setRequestStage(-1);
+      setStatusFeed(["手账已清空，本地故事记录已全部移除。你可以从一张空白地图重新开始旅行。"]);
+    } catch (resetError) {
+      setError(
+        resetError instanceof Error
+          ? resetError.message
+          : "TravelNeko ran into an unexpected issue."
+      );
+    } finally {
+      setIsResetting(false);
+    }
+  }
+
   if (view === "title") {
     return (
       <main className="title-shell">
@@ -1024,6 +1071,16 @@ export function TravelNekoApp({
                   继续上次存档
                 </button>
               ) : null}
+              {records.length ? (
+                <button
+                  className="ghost-button danger"
+                  disabled={isResetting}
+                  onClick={handleResetHistory}
+                  type="button"
+                >
+                  {isResetting ? "正在清空..." : "重置手账"}
+                </button>
+              ) : null}
             </div>
 
             <div className="title-models">
@@ -1063,47 +1120,20 @@ export function TravelNekoApp({
   }
 
   return (
-    <main className="page-shell">
-      <section className="world-header paper-card">
-        <div>
-          <p className="eyebrow">TravelNeko / World Map</p>
-          <h1>像小镇 RPG 一样走动、遇见、聊天，再把每段旅行写进手账。</h1>
+    <main className="page-shell world-shell">
+      <header className="world-bar">
+        <button className="ghost-button small" onClick={() => setView("title")} type="button">
+          ← 返回
+        </button>
+        <div className="world-bar-status">
+          <span className="status-pill">📍 {currentZone.name}</span>
+          <span className="status-pill">🐾 {activeNpc.alias}</span>
+          {talkDistance ? <span className="status-pill is-ready">可对话</span> : null}
         </div>
-        <div className="world-head-tools">
-          <span>当前位置：{currentZone.name}</span>
-          <span>目标对象：{activeNpc.alias}</span>
-          <button className="ghost-button small" onClick={() => setView("title")} type="button">
-            返回开始界面
-          </button>
-        </div>
-      </section>
+      </header>
 
-      <section className="world-grid">
-        <section className="main-column">
-          <article className="paper-card map-panel">
-            <div className="panel-heading">
-              <div>
-                <p className="eyebrow">RPG Map</p>
-                <h2>旅行小镇地图</h2>
-              </div>
-              <p className="panel-tip">
-                键盘移动主角猫，点击地图空地走过去，点猫或地点会自动寻路。
-              </p>
-            </div>
-
-            <div className="zone-tabs">
-              {zones.map((zone) => (
-                <button
-                  className={`zone-chip ${zone.id === activeZone.id ? "is-active" : ""}`}
-                  key={zone.id}
-                  onClick={() => moveToZone(zone)}
-                  type="button"
-                >
-                  {zone.name}
-                </button>
-              ))}
-            </div>
-
+      <form className="world-stage" onSubmit={handleSubmit}>
+        <article className="paper-card map-panel">
             <div className="map-stage" onClick={handleMapClick}>
               <MapBackdrop />
 
@@ -1157,348 +1187,334 @@ export function TravelNekoApp({
                 </div>
               </div>
 
-              <div className="map-focus-card">
-                <p className="eyebrow">Target Cat</p>
-                <h3>
-                  {activeNpc.alias} / {activeNpc.role}
-                </h3>
-                <p>{activeNpc.summary}</p>
-                <div className="chip-row">
-                  <span className="route-chip">区域：{activeZone.name}</span>
-                  <span className="route-chip">地标：{activeNpc.landmark}</span>
-                  <span className="route-chip">
-                    {talkDistance ? "已靠近，可直接对话" : "离得还不够近"}
-                  </span>
+            </div>
+
+            <div className="action-dock">
+              <div className="dock-target">
+                <CatSprite accent={activeNpc.accent} body={activeNpc.body} highlight />
+                <div className="dock-copy">
+                  <h3>{activeNpc.alias}</h3>
+                  <p className="dock-role">
+                    {activeNpc.role} · {activeNpc.landmark}
+                  </p>
+                  <p className="dock-summary">{activeNpc.summary}</p>
                 </div>
               </div>
+
+              <div className="dock-actions">
+                <button className="primary-button" disabled={isSubmitting} type="submit">
+                  {isSubmitting && !isAutoExploring
+                    ? `正在和 ${activeNpc.alias} 对话...`
+                    : talkButtonLabel}
+                </button>
+                <button
+                  className="ghost-button wide"
+                  disabled={isSubmitting}
+                  onClick={handleAutoExplore}
+                  type="button"
+                >
+                  {isSubmitting && isAutoExploring ? "AI 正在探索..." : "让 AI 自动探索"}
+                </button>
+                <button
+                  aria-expanded={showCustomize}
+                  className="text-button"
+                  onClick={() => setShowCustomize((value) => !value)}
+                  type="button"
+                >
+                  自定义这次相遇 {showCustomize ? "▲" : "▾"}
+                </button>
+              </div>
             </div>
+
+            {showCustomize ? (
+              <div className="customize-panel">
+                <div className="field-grid">
+                  <label>
+                    主角猫名字
+                    <input
+                      onChange={(event) => updateField("catName", event.target.value)}
+                      value={form.catName}
+                    />
+                  </label>
+                  <label>
+                    当前情绪
+                    <input
+                      onChange={(event) => updateField("mood", event.target.value)}
+                      value={form.mood}
+                    />
+                  </label>
+                </div>
+
+                <label>
+                  行走风格
+                  <input
+                    onChange={(event) => updateField("travelStyle", event.target.value)}
+                    value={form.travelStyle}
+                  />
+                </label>
+
+                <label>
+                  这次想怎么聊
+                  <textarea
+                    onChange={(event) => updateField("userAction", event.target.value)}
+                    rows={4}
+                    value={form.userAction}
+                  />
+                </label>
+
+                <label className="file-upload-row">
+                  可选旅行照片
+                  <input accept="image/*" onChange={handleTravelImageChange} type="file" />
+                  <span className="panel-tip">
+                    上传后会交给视觉模型提取氛围与线索；过大文件会被拒绝。
+                  </span>
+                  {imageDataUrl ? (
+                    <button
+                      className="ghost-button small"
+                      onClick={() => {
+                        setImageDataUrl(null);
+                        setError("");
+                      }}
+                      type="button"
+                    >
+                      清除图片
+                    </button>
+                  ) : null}
+                </label>
+
+                <label className="checkbox-row">
+                  <input
+                    checked={form.generatePostcard}
+                    onChange={(event) => updateField("generatePostcard", event.target.checked)}
+                    type="checkbox"
+                  />
+                  顺手让画师猫起一张明信片草图
+                </label>
+
+                <div className="control-pad-wrap">
+                  <div className="control-copy">
+                    <strong>手动移动</strong>
+                    <p>支持 `WASD` / 方向键，也可以直接点地图空地。</p>
+                  </div>
+                  <div className="control-pad">
+                    <button className="control-key" onClick={() => movePlayerBy(0, -4)} type="button">
+                      ↑
+                    </button>
+                    <div className="control-row">
+                      <button
+                        className="control-key"
+                        onClick={() => movePlayerBy(-4, 0)}
+                        type="button"
+                      >
+                        ←
+                      </button>
+                      <button
+                        className="control-key"
+                        onClick={() => movePlayerBy(4, 0)}
+                        type="button"
+                      >
+                        →
+                      </button>
+                    </div>
+                    <button className="control-key" onClick={() => movePlayerBy(0, 4)} type="button">
+                      ↓
+                    </button>
+                  </div>
+                </div>
+
+                <div className="nearby-strip">
+                  <span>附近可能插话的猫</span>
+                  <div className="chip-row">
+                    {nearbyCats.length ? (
+                      nearbyCats.map((cat) => (
+                        <span className="route-chip" key={cat.id}>
+                          {cat.alias}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="route-chip">这附近暂时只有它一只猫</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {isSubmitting && currentPhase ? (
+              <div className="run-progress">
+                <span aria-hidden="true" className="run-spinner" />
+                <div className="run-copy">
+                  <strong>{currentPhase.label}</strong>
+                  <p>{currentPhase.detail}</p>
+                </div>
+              </div>
+            ) : latestStatus ? (
+              <p className="run-hint">{latestStatus}</p>
+            ) : null}
+
+            {error ? <p className="error-text">{error}</p> : null}
           </article>
 
-          <article className="paper-card log-panel">
+          <article className="paper-card story-panel">
             {activeRecord ? (
               <>
                 <div className="panel-heading">
                   <div>
-                    <p className="eyebrow">Encounter Log</p>
+                    <p className="eyebrow">最新相遇</p>
                     <h2>{activeRecord.archive.chapterTitle}</h2>
                   </div>
                   <span className="story-date">{formatDate(activeRecord.createdAt)}</span>
                 </div>
 
-                <div className="scene-strip">
-                  <div>
-                    <span>地图区域</span>
-                    <strong>{activeRecord.input.destination}</strong>
-                  </div>
-                  <div>
-                    <span>主要对话猫</span>
-                    <strong>{activeRecord.input.focusCatName || activeNpc.alias}</strong>
-                  </div>
-                  <div>
-                    <span>遭遇模式</span>
-                    <strong>
-                      {activeRecord.input.encounterMode === "auto_explore"
-                        ? "AI 自动探索"
-                        : "手动靠近对话"}
-                    </strong>
-                  </div>
-                  <div>
-                    <span>纪念物</span>
-                    <strong>{activeRecord.archive.keepsake}</strong>
-                  </div>
-                </div>
+                <p className="story-lede">{activeRecord.archive.summary}</p>
 
-                <div className="transcript-grid">
-                  <section className="dialogue-card">
-                    <p className="eyebrow">Conversation</p>
-                    <div className="speech-stack">
-                      <div className="speech is-player">
-                        <strong>{activeRecord.input.catName}</strong>
-                        <p>{activeRecord.input.userAction}</p>
+                <details className="reveal">
+                  <summary>展开这段相遇的对话与故事</summary>
+                  <div className="reveal-body">
+                    <div className="scene-strip">
+                      <div>
+                        <span>地图区域</span>
+                        <strong>{activeRecord.input.destination}</strong>
                       </div>
-                      <div className="speech is-focus">
-                        <strong>{activeRecord.input.focusCatName || "目标猫"}</strong>
-                        <p>{activeRecord.companion.openingLine}</p>
+                      <div>
+                        <span>主要对话猫</span>
+                        <strong>{activeRecord.input.focusCatName || activeNpc.alias}</strong>
                       </div>
-                      {activeRecord.companion.banter.map((line, index) => {
-                        const parsed = parseSpeakerLine(line);
-                        const isFocus = parsed.speaker.includes(activeRecordFocusName);
-
-                        return (
-                          <div
-                            className={`speech ${isFocus ? "is-focus" : "is-cameo"}`}
-                            key={`${index}-${line}`}
-                          >
-                            <strong>{parsed.speaker}</strong>
-                            <p>{parsed.text}</p>
-                          </div>
-                        );
-                      })}
-                      <div className="speech is-invite">
-                        <strong>下一步邀请</strong>
-                        <p>{activeRecord.companion.invitation}</p>
+                      <div>
+                        <span>遭遇模式</span>
+                        <strong>
+                          {activeRecord.input.encounterMode === "auto_explore"
+                            ? "AI 自动探索"
+                            : "手动靠近对话"}
+                        </strong>
+                      </div>
+                      <div>
+                        <span>纪念物</span>
+                        <strong>{activeRecord.archive.keepsake}</strong>
+                      </div>
+                      <div>
+                        <span>触发剧情</span>
+                        <strong>
+                          {activeRecord.triggeredPlot
+                            ? activeRecord.triggeredPlot.title
+                            : "自由生成"}
+                        </strong>
                       </div>
                     </div>
-                  </section>
 
-                  <section className="story-card">
-                    <p className="eyebrow">Storybook</p>
-                    <h3>{activeRecord.archive.summary}</h3>
-                    <p className="story-body">{activeRecord.archive.story}</p>
-                  </section>
-                </div>
+                    <div className="transcript-grid">
+                      <section className="dialogue-card">
+                        <p className="eyebrow">Conversation</p>
+                        <div className="speech-stack">
+                          <div className="speech is-player">
+                            <strong>{activeRecord.input.catName}</strong>
+                            <p>{activeRecord.input.userAction}</p>
+                          </div>
+                          <div className="speech is-focus">
+                            <strong>{activeRecord.input.focusCatName || "目标猫"}</strong>
+                            <p>{activeRecord.companion.openingLine}</p>
+                          </div>
+                          {activeRecord.companion.banter.map((line, index) => {
+                            const parsed = parseSpeakerLine(line);
+                            const isFocus = parsed.speaker.includes(activeRecordFocusName);
 
-                <div className="tag-row">
-                  {activeRecord.archive.memoryTags.map((tag) => (
-                    <span className="memory-tag" key={tag}>
-                      #{tag}
-                    </span>
-                  ))}
-                </div>
+                            return (
+                              <div
+                                className={`speech ${isFocus ? "is-focus" : "is-cameo"}`}
+                                key={`${index}-${line}`}
+                              >
+                                <strong>{parsed.speaker}</strong>
+                                <p>{parsed.text}</p>
+                              </div>
+                            );
+                          })}
+                          <div className="speech is-invite">
+                            <strong>下一步邀请</strong>
+                            <p>{activeRecord.companion.invitation}</p>
+                          </div>
+                        </div>
+                      </section>
 
-                <div className="agent-grid">
-                  {activeRecord.agentNotes.map((note) => (
-                    <section className="agent-card" key={note.agentId}>
-                      <p className="agent-role">
-                        {note.displayName} / {note.role}
-                      </p>
-                      <h3>{note.content}</h3>
-                      <ul>
-                        {note.highlights.map((highlight) => (
-                          <li key={highlight}>{highlight}</li>
-                        ))}
-                      </ul>
-                    </section>
-                  ))}
-                </div>
+                      <section className="story-card">
+                        <p className="eyebrow">Storybook</p>
+                        <h3>{activeRecord.archive.summary}</h3>
+                        <p className="story-body">{activeRecord.archive.story}</p>
+                      </section>
+                    </div>
+
+                    <div className="tag-row">
+                      {activeRecord.archive.memoryTags.map((tag) => (
+                        <span className="memory-tag" key={tag}>
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </details>
+
+                <details className="reveal">
+                  <summary>幕后花絮 · Agent 注释</summary>
+                  <div className="agent-grid">
+                    {activeRecord.agentNotes.map((note) => (
+                      <section className="agent-card" key={note.agentId}>
+                        <p className="agent-role">
+                          {note.displayName} / {note.role}
+                        </p>
+                        <h3>{note.content}</h3>
+                        <ul>
+                          {note.highlights.map((highlight) => (
+                            <li key={highlight}>{highlight}</li>
+                          ))}
+                        </ul>
+                      </section>
+                    ))}
+                  </div>
+                </details>
               </>
             ) : (
               <div className="empty-state">
-                <p className="eyebrow">No Story Yet</p>
+                <p className="eyebrow">还没有故事</p>
                 <h2>先在地图里走一走，找一只猫说话。</h2>
-                <p>第一段故事会在你靠近某只猫、或者按下 AI 探索时自动生成。</p>
+                <p>靠近某只猫，或点「让 AI 自动探索」，第一段故事就会自动生成。</p>
               </div>
             )}
           </article>
-        </section>
 
-        <aside className="side-column">
-          <form className="paper-card kiosk-panel" onSubmit={handleSubmit}>
-            <div className="panel-heading">
-              <div>
-                <p className="eyebrow">Info Kiosk</p>
-                <h2>信息台</h2>
-              </div>
-              <p className="panel-tip">这里负责你的输入、寻路状态和 agent 处理过程。</p>
-            </div>
-
-            <section className="npc-focus">
-              <CatSprite accent={activeNpc.accent} body={activeNpc.body} highlight />
-              <div className="npc-copy">
-                <h3>{activeNpc.alias}</h3>
-                <p>
-                  {activeNpc.role} · {activeNpc.landmark}
-                </p>
-                <p>{activeNpc.summary}</p>
-              </div>
-            </section>
-
-            <div className="field-grid">
-              <label>
-                主角猫名字
-                <input
-                  onChange={(event) => updateField("catName", event.target.value)}
-                  value={form.catName}
-                />
-              </label>
-
-              <label>
-                当前情绪
-                <input
-                  onChange={(event) => updateField("mood", event.target.value)}
-                  value={form.mood}
-                />
-              </label>
-            </div>
-
-            <label>
-              行走风格
-              <input
-                onChange={(event) => updateField("travelStyle", event.target.value)}
-                value={form.travelStyle}
-              />
-            </label>
-
-            <label>
-              这次想怎么聊
-              <textarea
-                onChange={(event) => updateField("userAction", event.target.value)}
-                rows={5}
-                value={form.userAction}
-              />
-            </label>
-
-            <label className="file-upload-row">
-              可选旅行照片
-              <input
-                accept="image/*"
-                onChange={handleTravelImageChange}
-                type="file"
-              />
-              <span className="panel-tip">
-                上传后会交给视觉模型提取氛围与线索；过大文件会被拒绝。
-              </span>
-              {imageDataUrl ? (
-                <button
-                  className="ghost-button small"
-                  onClick={() => {
-                    setImageDataUrl(null);
-                    setError("");
-                  }}
-                  type="button"
-                >
-                  清除图片
-                </button>
-              ) : null}
-            </label>
-
-            <div className="kiosk-readonly">
-              <div>
-                <span>当前地图区域</span>
-                <strong>{currentZone.name}</strong>
-              </div>
-              <div>
-                <span>目标地标</span>
-                <strong>{activeNpc.landmark}</strong>
-              </div>
-            </div>
-
-            <div className="control-pad-wrap">
-              <div className="control-copy">
-                <strong>手动移动</strong>
-                <p>支持 `WASD` / 方向键，也可以直接点地图空地。</p>
-              </div>
-              <div className="control-pad">
-                <button className="control-key" onClick={() => movePlayerBy(0, -4)} type="button">
-                  ↑
-                </button>
-                <div className="control-row">
+        {records.length ? (
+          <details className="paper-card journal-drawer">
+            <summary className="journal-summary">
+              <span className="journal-title">手账 · {records.length} 篇</span>
+              <span className="journal-hint">展开查看全部故事</span>
+            </summary>
+            <div className="journal-body">
+              <div className="timeline">
+                {records.map((record) => (
                   <button
-                    className="control-key"
-                    onClick={() => movePlayerBy(-4, 0)}
+                    className={`timeline-entry ${record.id === activeRecord?.id ? "is-active" : ""}`}
+                    key={record.id}
+                    onClick={() => syncFromRecord(record)}
                     type="button"
                   >
-                    ←
+                    <span>{formatDate(record.createdAt)}</span>
+                    <strong>{record.archive.chapterTitle}</strong>
+                    <p>{record.archive.summary}</p>
                   </button>
-                  <button
-                    className="control-key"
-                    onClick={() => movePlayerBy(4, 0)}
-                    type="button"
-                  >
-                    →
-                  </button>
-                </div>
-                <button className="control-key" onClick={() => movePlayerBy(0, 4)} type="button">
-                  ↓
-                </button>
+                ))}
               </div>
-            </div>
-
-            <label className="checkbox-row">
-              <input
-                checked={form.generatePostcard}
-                onChange={(event) => updateField("generatePostcard", event.target.checked)}
-                type="checkbox"
-              />
-              顺手让画师猫起一张明信片草图
-            </label>
-
-            <div className="action-stack">
-              <button className="primary-button" disabled={isSubmitting} type="submit">
-                {isSubmitting && !isAutoExploring
-                  ? `正在和 ${activeNpc.alias} 对话...`
-                  : talkButtonLabel}
-              </button>
-
-              <button
-                className="ghost-button wide"
-                disabled={isSubmitting}
-                onClick={handleAutoExplore}
-                type="button"
-              >
-                {isSubmitting && isAutoExploring ? "AI 正在探索..." : "点击让 AI 自动探索"}
-              </button>
-            </div>
-
-            {error ? <p className="error-text">{error}</p> : null}
-
-            <div className="nearby-strip">
-              <span>附近可能插话的猫</span>
-              <div className="chip-row">
-                {nearbyCats.length ? (
-                  nearbyCats.map((cat) => (
-                    <span className="route-chip" key={cat.id}>
-                      {cat.alias}
-                    </span>
-                  ))
-                ) : (
-                  <span className="route-chip">这附近暂时只有它一只猫</span>
-                )}
-              </div>
-            </div>
-
-            <div className="phase-list">
-              {requestPhases.map((phase, index) => (
-                <div
-                  className={`phase-item ${
-                    requestStage > index ? "is-complete" : requestStage === index ? "is-active" : ""
-                  }`}
-                  key={phase.id}
-                >
-                  <span className="phase-dot" />
-                  <div className="phase-copy">
-                    <strong>{phase.label}</strong>
-                    <p>{phase.detail}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="status-feed">
-              {statusFeed.map((note, index) => (
-                <div className="status-entry" key={`${index}-${note}`}>
-                  {note}
-                </div>
-              ))}
-            </div>
-          </form>
-
-          <aside className="paper-card journal-panel">
-            <div className="panel-heading">
-              <div>
-                <p className="eyebrow">Journal Archive</p>
-                <h2>故事留存记录</h2>
-              </div>
-              <span className="journal-count">{records.length} 篇</span>
-            </div>
-
-            <div className="timeline">
-              {records.map((record) => (
+              <div className="journal-footer">
+                <span>模型：{config.model}</span>
                 <button
-                  className={`timeline-entry ${record.id === activeRecord?.id ? "is-active" : ""}`}
-                  key={record.id}
-                  onClick={() => syncFromRecord(record)}
+                  className="ghost-button small danger"
+                  disabled={isResetting || isSubmitting}
+                  onClick={handleResetHistory}
                   type="button"
                 >
-                  <span>{formatDate(record.createdAt)}</span>
-                  <strong>{record.archive.chapterTitle}</strong>
-                  <p>{record.archive.summary}</p>
+                  {isResetting ? "清空中..." : "重置手账"}
                 </button>
-              ))}
+              </div>
             </div>
-          </aside>
-        </aside>
-      </section>
+          </details>
+        ) : null}
+      </form>
     </main>
   );
 }

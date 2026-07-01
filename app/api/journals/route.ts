@@ -7,3 +7,9 @@ export async function GET() {
   const records = await store.listRecords();
   return NextResponse.json({ records });
 }
+
+export async function DELETE() {
+  const store = new JsonJournalStore();
+  await store.clearRecords();
+  return NextResponse.json({ ok: true });
+}

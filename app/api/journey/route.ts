@@ -17,8 +17,10 @@ const journeySchema = z.object({
   travelStyle: z.string().trim().min(2).max(40),
   userAction: z.string().trim().min(2).max(120),
   currentArea: z.string().trim().min(2).max(60).optional(),
+  zoneId: z.string().trim().min(1).max(40).optional(),
   focusCatName: z.string().trim().min(1).max(40).optional(),
   focusCatRole: z.string().trim().min(1).max(40).optional(),
+  focusNpcId: z.string().trim().min(1).max(40).optional(),
   nearbyCats: z.array(z.string().trim().min(1).max(40)).max(6).optional(),
   encounterMode: z.enum(["manual_talk", "auto_explore"]).optional(),
   imageDataUrl: z

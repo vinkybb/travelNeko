@@ -1,0 +1,21 @@
+{
+  "id": "market_unfinished_postcard",
+  "title": "画不完的明信片",
+  "synopsis": "画师猫有一张永远差最后一笔的明信片，它想借旅行猫的眼睛找到收尾的那抹颜色。",
+  "priority": 10,
+  "once": true,
+  "preconditions": {
+    "zoneId": "market",
+    "npcId": "painter-cat",
+    "forbiddenFlags": ["market_unfinished_postcard_done"]
+  },
+  "beats": [
+    "画师猫摊开一张只差一角的明信片，那角始终空着。",
+    "它说每次落笔都觉得颜色不对，像是在等某个人来点。",
+    "它请旅行猫描述今天集市里最打动自己的一个瞬间。"
+  ],
+  "effects": {
+    "setFlags": ["market_unfinished_postcard_done"],
+    "relationship": { "painter-cat": 1 }
+  }
+}

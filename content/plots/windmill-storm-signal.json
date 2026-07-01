@@ -1,0 +1,20 @@
+{
+  "id": "windmill_storm_signal",
+  "title": "风车坡的风暴信号",
+  "synopsis": "侦察猫在高塔上发现远处海面有异常的风信，需要旅行猫一起判断这是不是一场要来的风暴。",
+  "priority": 15,
+  "once": false,
+  "preconditions": {
+    "zoneId": "windmill",
+    "npcId": "scout-cat",
+    "minZoneVisits": 2
+  },
+  "beats": [
+    "侦察猫压低身子盯着风信标，尾巴绷得很紧。",
+    "远处海面的云在用一种它没见过的节奏翻涌。",
+    "它请旅行猫一起决定：是发出警报，还是再多观察一会儿。"
+  ],
+  "effects": {
+    "relationship": { "scout-cat": 1 }
+  }
+}

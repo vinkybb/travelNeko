@@ -64,5 +64,19 @@ describe("JsonJournalStore", () => {
 
     await rm(tempDirectory, { recursive: true, force: true });
   });
+
+  it("clears all stored journals", async () => {
+    const tempDirectory = await mkdtemp(path.join(os.tmpdir(), "travel-neko-store-"));
+    const filePath = path.join(tempDirectory, "journals.json");
+    const store = new JsonJournalStore(filePath);
+
+    await store.saveRecord(makeRecord("one", "2026-03-26T10:00:00.000Z"));
+    await store.clearRecords();
+
+    const records = await store.listRecords();
+    expect(records).toEqual([]);
+
+    await rm(tempDirectory, { recursive: true, force: true });
+  });
 });
 

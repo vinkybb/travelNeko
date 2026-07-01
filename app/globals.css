@@ -231,6 +231,20 @@ img {
   font-size: 0.92rem;
 }
 
+.ghost-button.danger {
+  color: #8e3b52;
+  border-color: rgba(142, 59, 82, 0.28);
+  background: rgba(255, 240, 244, 0.82);
+}
+
+.journal-heading-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .ghost-button.wide,
 .primary-button {
   width: 100%;
@@ -314,6 +328,265 @@ img {
   justify-items: end;
   color: var(--muted);
   font-size: 0.96rem;
+}
+
+/* --- Simplified single-column world layout --- */
+.world-shell {
+  max-width: 1120px;
+}
+
+.world-bar {
+  position: sticky;
+  top: 12px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(22, 36, 32, 0.1);
+  background: rgba(255, 249, 239, 0.82);
+  box-shadow: 0 12px 30px rgba(62, 45, 23, 0.12);
+  backdrop-filter: blur(16px);
+}
+
+.world-bar-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.status-pill {
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(22, 36, 32, 0.1);
+  font-size: 0.9rem;
+}
+
+.status-pill.is-ready {
+  background: rgba(46, 127, 120, 0.14);
+  border-color: rgba(46, 127, 120, 0.3);
+  color: #2d605a;
+}
+
+.world-stage {
+  display: grid;
+  gap: 18px;
+}
+
+/* Action dock beneath the map: target cat + primary actions */
+.action-dock {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+  gap: 18px;
+  align-items: center;
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 22px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.dock-target {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 14px;
+  align-items: center;
+}
+
+.dock-target .svg-cat {
+  width: 84px;
+}
+
+.dock-copy h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.24rem;
+}
+
+.dock-role {
+  margin: 2px 0 6px;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.dock-summary {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+  font-size: 0.94rem;
+}
+
+.dock-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.text-button {
+  border: 0;
+  background: none;
+  padding: 4px;
+  color: var(--teal);
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  justify-self: center;
+}
+
+.text-button:hover {
+  text-decoration: underline;
+}
+
+/* Progressive-disclosure customize panel */
+.customize-panel {
+  margin-top: 16px;
+  padding: 18px;
+  border-radius: 22px;
+  border: 1px dashed rgba(22, 36, 32, 0.2);
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.customize-panel .nearby-strip {
+  margin-top: 4px;
+}
+
+/* Inline run progress (replaces persistent phase list + status feed) */
+.run-progress {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(67, 112, 184, 0.28);
+  background: rgba(67, 112, 184, 0.08);
+}
+
+.run-copy strong {
+  font-family: var(--font-display);
+}
+
+.run-copy p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.run-spinner {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 3px solid rgba(67, 112, 184, 0.25);
+  border-top-color: var(--blue);
+  animation: run-spin 720ms linear infinite;
+}
+
+.run-hint {
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(22, 36, 32, 0.08);
+  color: var(--muted);
+  font-size: 0.94rem;
+}
+
+@keyframes run-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Story panel with collapsible detail sections */
+.story-lede {
+  margin: 0 0 16px;
+  font-size: 1.08rem;
+  line-height: 1.7;
+}
+
+.reveal {
+  margin-top: 12px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.5);
+  overflow: hidden;
+}
+
+.reveal > summary {
+  padding: 14px 18px;
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--font-display);
+  color: var(--ink);
+}
+
+.reveal > summary::-webkit-details-marker {
+  display: none;
+}
+
+.reveal > summary::before {
+  content: "▸ ";
+  color: var(--teal);
+}
+
+.reveal[open] > summary::before {
+  content: "▾ ";
+}
+
+.reveal-body {
+  padding: 0 18px 18px;
+}
+
+.reveal-body .scene-strip,
+.reveal-body .tag-row {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+/* Journal as a collapsible drawer */
+.journal-drawer > summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--font-display);
+}
+
+.journal-drawer > summary::-webkit-details-marker {
+  display: none;
+}
+
+.journal-title {
+  font-size: 1.1rem;
+}
+
+.journal-hint {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.journal-drawer[open] > summary {
+  margin-bottom: 16px;
+}
+
+.journal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.9rem;
 }
 
 .main-column,
@@ -510,7 +783,7 @@ img {
   font-size: 0.88rem;
 }
 
-.log-panel .scene-strip,
+.scene-strip,
 .kiosk-readonly,
 .field-grid {
   display: grid;
@@ -633,14 +906,16 @@ img {
   color: var(--muted);
 }
 
-.kiosk-panel label {
+.kiosk-panel label,
+.customize-panel label {
   display: grid;
   gap: 8px;
   margin-bottom: 14px;
   font-size: 0.98rem;
 }
 
-.kiosk-panel label.file-upload-row input[type="file"] {
+.kiosk-panel label.file-upload-row input[type="file"],
+.customize-panel label.file-upload-row input[type="file"] {
   width: auto;
   max-width: 100%;
   padding: 8px 0;
@@ -649,12 +924,15 @@ img {
   background: transparent;
 }
 
-.kiosk-panel label.file-upload-row .panel-tip {
+.kiosk-panel label.file-upload-row .panel-tip,
+.customize-panel label.file-upload-row .panel-tip {
   margin-top: 2px;
 }
 
 .kiosk-panel input,
-.kiosk-panel textarea {
+.kiosk-panel textarea,
+.customize-panel input,
+.customize-panel textarea {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 18px;
@@ -666,7 +944,9 @@ img {
 }
 
 .kiosk-panel input:focus,
-.kiosk-panel textarea:focus {
+.kiosk-panel textarea:focus,
+.customize-panel input:focus,
+.customize-panel textarea:focus {
   border-color: rgba(46, 127, 120, 0.65);
   transform: translateY(-1px);
 }
@@ -914,11 +1194,12 @@ img {
 
   .field-grid,
   .kiosk-readonly,
-  .log-panel .scene-strip,
+  .scene-strip,
   .agent-grid,
   .transcript-grid,
   .npc-focus,
-  .control-pad-wrap {
+  .control-pad-wrap,
+  .action-dock {
     grid-template-columns: 1fr;
   }
 

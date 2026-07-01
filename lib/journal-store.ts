@@ -52,4 +52,9 @@ export class JsonJournalStore {
     await writeFile(this.filePath, `${JSON.stringify(nextRecords, null, 2)}\n`, "utf8");
     return record;
   }
+
+  async clearRecords() {
+    await this.ensureFile();
+    await writeFile(this.filePath, "[]\n", "utf8");
+  }
 }
